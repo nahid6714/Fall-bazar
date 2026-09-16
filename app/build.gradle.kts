@@ -34,12 +34,9 @@ android {
         versionName="1.0.$runNumber"
     }
     buildFeatures { compose=true; buildConfig=true }
-    // The repository still contains legacy com.example source files from the old app.
-    // Keep them in Git for history, but exclude them from this Fol Bazar build.
+    // Legacy Bus Terminal sources remain in the repository for history, but must not
+    // be compiled as part of the current Fol Bazar Admin application.
     sourceSets["main"].java.exclude("com/example/**")
-
-    // Kotlin sources are compiled separately by the Kotlin Android plugin.
-    // Exclude the same legacy package from Kotlin compilation as well.
     kotlin.sourceSets.getByName("main").kotlin.exclude("com/example/**")
     buildTypes {
         debug { buildConfigField("String","SUPABASE_URL","\"${prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${prop("CLOUDINARY_UPLOAD_PRESET")}\"") }

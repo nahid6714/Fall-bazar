@@ -1,7 +1,7 @@
-name: Build & Release APK (Manual)
+name: Build & Release APK (Manual Legacy)
 
-# The repository also has release.yml, which is the single automatic APK workflow.
-# This legacy workflow is intentionally manual-only to prevent two builds per push.
+# The automatic APK workflow is release.yml.
+# This legacy workflow is manual-only so one push creates only one APK build.
 on:
   workflow_dispatch:
 
@@ -9,10 +9,10 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  disabled:
     runs-on: ubuntu-latest
     steps:
-      - name: Legacy workflow disabled
+      - name: Legacy workflow notice
         run: |
-          echo "This legacy workflow is manual-only."
-          echo "Use .github/workflows/release.yml for automatic APK builds."
+          echo "Legacy automatic APK workflow is disabled."
+          echo "Use .github/workflows/release.yml for the automatic build."

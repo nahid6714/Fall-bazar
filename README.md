@@ -51,3 +51,13 @@ The existing release workflow can build and publish the APK. Required values rem
 - `CLOUDINARY_UPLOAD_PRESET`
 
 For Supabase schema changes, prefer migration files / version-controlled SQL rather than repeatedly editing the production database manually.
+
+
+## In-app automatic update
+The Admin app checks the latest GitHub Release for `nahid6714/Fall-bazar`.
+From **সেটিংস / App Update** an admin can check manually, see a newer version,
+download the APK with progress, and launch Android's installer. Android may
+require the app's **Install unknown apps** permission the first time.
+
+The automatic GitHub Actions build remains `.github/workflows/release.yml`.
+The older `release-apk.yml` is manual-only to prevent duplicate builds.

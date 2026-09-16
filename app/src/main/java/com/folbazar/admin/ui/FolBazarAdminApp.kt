@@ -3,6 +3,7 @@
 package com.folbazar.admin.ui
 
 import android.net.Uri
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -13,8 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,9 +23,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import coil.compose.AsyncImage
+import com.folbazar.admin.BuildConfig
 import com.folbazar.admin.data.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -58,7 +59,7 @@ fun FolBazarAdminApp() {
         bottomBar = {
             NavigationBar {
                 val current = nav.currentBackStackEntryAsState().value?.destination?.route
-                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }) }
+                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist","settings")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }) }
             }
         }
     ) { padding ->
@@ -72,6 +73,7 @@ fun FolBazarAdminApp() {
             composable("complaints") { Complaints() }
             composable("coupons") { Coupons() }
             composable("wishlist") { Wishlist() }
+            composable("settings") { SettingsScreen() }
         }
     }
 }
@@ -111,6 +113,7 @@ fun FolBazarAdminApp() {
         item{AdminAction("অভিযোগ","অভিযোগ দেখা, নোট ও status পরিবর্তন",Icons.Default.ReportProblem){nav.navigate("complaints")}}
         item{AdminAction("কুপন / ডিসকাউন্ট","coupon code, percent/fixed discount, limit",Icons.Default.LocalOffer){nav.navigate("coupons")}}
         item{AdminAction("Wishlist","কোন পণ্য কতবার wishlist হয়েছে",Icons.Default.Favorite){nav.navigate("wishlist")}}
+        item{AdminAction("সেটিংস / App Update","অ্যাপ আপডেট চেক, ডাউনলোড ও ইনস্টল",Icons.Default.Settings){nav.navigate("settings")}}
         item{Text("নিরাপত্তা: database RLS policy-ই চূড়ান্ত permission; app শুধু admin JWT দিয়ে কাজ করে.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
     }
 }
@@ -725,3 +728,165 @@ fun Coupons() {
 }
 
 
+
+
+@Composable
+private fun SettingsScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var update by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var download by remember { mutableStateOf(DownloadState()) }
+    var installedFile by remember { mutableStateOf<java.io.File?>(null) }
+
+    fun check() {
+        if (checking) return
+        checking = true
+        message = null
+        scope.launch {
+            when (val result = UpdateManager.checkForUpdate()) {
+                UpdateResult.UpToDate -> {
+                    update = null
+                    message = "আপনার অ্যাপ বর্তমানে সর্বশেষ ভার্সনে আছে।"
+                }
+                is UpdateResult.Available -> {
+                    update = result.info
+                    message = null
+                }
+                is UpdateResult.Error -> {
+                    update = null
+                    message = result.message
+                }
+            }
+            checking = false
+        }
+    }
+
+    LaunchedEffect(Unit) { check() }
+
+    LazyColumn(
+        Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Text("সেটিংস", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Fol Bazar Admin • বর্তমান ভার্সন ${BuildConfig.VERSION_NAME}")
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("অ্যাপ আপডেট", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "GitHub Release থেকে নতুন Admin APK খুঁজে দেখুন। নতুন ভার্সন থাকলে এখান থেকেই ডাউনলোড করে ইনস্টল করা যাবে।",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    when {
+                        checking -> {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text("নতুন আপডেট খোঁজা হচ্ছে…")
+                        }
+                        update != null -> {
+                            val info = update!!
+                            Text("নতুন ভার্সন পাওয়া গেছে: ${info.versionName}", fontWeight = FontWeight.Bold)
+                            Text(info.releaseName)
+                            if (download.running) {
+                                LinearProgressIndicator(
+                                    progress = { download.progress / 100f },
+                                    Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    if (download.totalBytes > 0)
+                                        "ডাউনলোড হচ্ছে… ${download.progress}% (${formatBytes(download.downloadedBytes)} / ${formatBytes(download.totalBytes)})"
+                                    else
+                                        "ডাউনলোড হচ্ছে… ${formatBytes(download.downloadedBytes)}"
+                                )
+                            } else if (installedFile != null) {
+                                Text("ডাউনলোড সম্পন্ন হয়েছে। এখন ইনস্টল করুন।", fontWeight = FontWeight.Bold)
+                                Button(
+                                    onClick = {
+                                        if (!UpdateManager.canInstallPackages(context)) {
+                                            UpdateManager.openUnknownSourcesSettings(context)
+                                        } else {
+                                            UpdateManager.installApk(context, installedFile!!)
+                                                .onFailure { message = it.message ?: "ইনস্টল শুরু করা যায়নি" }
+                                        }
+                                    },
+                                    Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.InstallMobile, null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        if (UpdateManager.canInstallPackages(context))
+                                            "আপডেট ইনস্টল করুন"
+                                        else
+                                            "Install permission চালু করুন"
+                                    )
+                                }
+                            } else {
+                                Button(
+                                    onClick = {
+                                        download = DownloadState(running = true)
+                                        scope.launch {
+                                            UpdateManager.downloadUpdate(context, info) { state ->
+                                                download = state
+                                            }.fold(
+                                                { installedFile = it; download = DownloadState(progress = 100, downloadedBytes = it.length(), totalBytes = it.length(), file = it) },
+                                                { message = it.message ?: "ডাউনলোড ব্যর্থ হয়েছে"; download = DownloadState(error = message) }
+                                            )
+                                        }
+                                    },
+                                    Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Download, null)
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("নতুন আপডেট ডাউনলোড করুন")
+                                }
+                            }
+                        }
+                        else -> {
+                            message?.let {
+                                Text(
+                                    it,
+                                    color = if (it.contains("সর্বশেষ")) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = { check() },
+                        enabled = !checking && !download.running,
+                        Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("আপডেট চেক করুন")
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("আপডেট কীভাবে কাজ করবে", fontWeight = FontWeight.Bold)
+                    Text("1. নতুন GitHub Release হলে অ্যাপ সেটি শনাক্ত করবে।")
+                    Text("2. নতুন ভার্সন থাকলে এই পেজে দেখাবে।")
+                    Text("3. ডাউনলোডে চাপলে অগ্রগতি (%) দেখা যাবে।")
+                    Text("4. ডাউনলোড শেষ হলে এখানেই Install বাটন আসবে।")
+                    Text("5. Android-এর নিরাপত্তার কারণে প্রথমবার এই অ্যাপের জন্য 'Install unknown apps' অনুমতি লাগতে পারে।")
+                }
+            }
+        }
+    }
+}
+
+private fun formatBytes(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    if (bytes < 1024 * 1024) return "${bytes / 1024} KB"
+    return String.format("%.1f MB", bytes / (1024.0 * 1024.0))
+}
