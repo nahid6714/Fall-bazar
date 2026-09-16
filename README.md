@@ -113,3 +113,11 @@ The release build now has safe Supabase defaults so a downloaded APK does not bu
 an invalid URL such as `/auth/v1/...` when GitHub Actions Secrets are missing.
 CI secrets still override the defaults when provided. Supabase Auth uses the project's
 real HTTPS URL for email/password sign-in.
+
+
+## v10 final build fix
+
+The CI failure was traced directly to `MainActivity.kt`: `Session` was imported twice
+and initialized twice. The duplicate import/initialization has been removed. A separate
+Kotlin compilation check now runs before the full release APK build so source-level
+compilation errors are detected early.

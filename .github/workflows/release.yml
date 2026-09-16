@@ -69,6 +69,28 @@ jobs:
           fi
           test -f "$HOME/.android/debug.keystore"
 
+      - name: Check Kotlin compilation
+        shell: bash
+        run: |
+          set -u
+          max_attempts=3
+          attempt=1
+
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Kotlin compile check attempt $attempt/$max_attempts"
+            if gradle :app:compileReleaseKotlin --no-daemon --stacktrace; then
+              echo "Kotlin compilation check passed."
+              exit 0
+            fi
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Kotlin compilation check failed."
+              exit 1
+            fi
+            sleep_seconds=$((attempt * 10))
+            sleep "$sleep_seconds"
+            attempt=$((attempt + 1))
+          done
+
       - name: Build release APK
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
