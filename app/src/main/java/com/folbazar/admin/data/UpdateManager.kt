@@ -2,6 +2,8 @@ package com.folbazar.admin.data
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import androidx.core.content.FileProvider
@@ -9,14 +11,21 @@ import com.folbazar.admin.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.zip.ZipFile
 
+/**
+ * Checks GitHub Releases through a small update.json manifest and downloads the APK.
+ * The APK is validated before Android's package installer is opened.
+ * No GitHub API token or Cloudinary secret is used here.
+ */
 data class AppUpdateInfo(
     val versionCode: Int,
     val versionName: String,
@@ -44,21 +53,27 @@ object UpdateManager {
     private const val REPO = "nahid6714/Fall-bazar"
     private const val UPDATE_JSON_URL =
         "https://github.com/$REPO/releases/latest/download/update.json"
+    private const val APK_MIME = "application/vnd.android.package-archive"
+
+    private fun httpGet(url: String, accept: String): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 20_000
+            readTimeout = 30_000
+            instanceFollowRedirects = true
+            setRequestProperty("Accept", accept)
+            setRequestProperty("User-Agent", "FolBazar-Admin/${BuildConfig.VERSION_NAME}")
+            setRequestProperty("Cache-Control", "no-cache")
+        }
 
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         try {
-            val conn = (URL(UPDATE_JSON_URL).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 15_000
-                readTimeout = 20_000
-                instanceFollowRedirects = true
-                setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", "FolBazar-Admin/${BuildConfig.VERSION_NAME}")
-            }
-
+            val conn = httpGet(UPDATE_JSON_URL, "application/json")
             try {
                 if (conn.responseCode !in 200..299) {
-                    return@withContext UpdateResult.Error("GitHub update JSON check failed: HTTP ${conn.responseCode}")
+                    return@withContext UpdateResult.Error(
+                        "GitHub update JSON check failed: HTTP ${conn.responseCode}"
+                    )
                 }
 
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
@@ -71,7 +86,9 @@ object UpdateManager {
                 val releaseUrl = root["releaseUrl"]?.jsonPrimitive?.content.orEmpty()
 
                 if (versionCode <= 0 || downloadUrl.isBlank()) {
-                    return@withContext UpdateResult.Error("GitHub update JSON-এ version/APK তথ্য সঠিক নয়")
+                    return@withContext UpdateResult.Error(
+                        "GitHub update JSON-এ version/APK তথ্য সঠিক নয়"
+                    )
                 }
 
                 if (versionCode > BuildConfig.VERSION_CODE) {
@@ -94,34 +111,49 @@ object UpdateManager {
         info: AppUpdateInfo,
         onProgress: (DownloadState) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
+        val updatesDir = File(context.filesDir, "updates").apply { mkdirs() }
+        val target = File(updatesDir, "FolBazar-Admin-${info.versionCode}.apk")
+        val partial = File(updatesDir, "${target.name}.part")
+
         try {
-            val updatesDir = File(context.filesDir, "updates").apply { mkdirs() }
-            val safeName = "FolBazar-Admin-${info.versionCode}.apk"
-            val target = File(updatesDir, safeName)
-            if (target.exists() && target.length() > 0L) {
-                onProgress(DownloadState(progress = 100, downloadedBytes = target.length(), totalBytes = target.length(), file = target))
-                return@withContext Result.success(target)
+            // Never trust a cached APK just because the file exists. Validate it first.
+            if (target.exists()) {
+                val cached = validateApk(context, target, info)
+                if (cached.isSuccess) {
+                    onProgress(
+                        DownloadState(
+                            progress = 100,
+                            downloadedBytes = target.length(),
+                            totalBytes = target.length(),
+                            file = target
+                        )
+                    )
+                    return@withContext Result.success(target)
+                }
+                target.delete()
             }
 
-            val conn = (URL(info.downloadUrl).openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = 20_000
-                readTimeout = 60_000
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "FolBazar-Admin/${BuildConfig.VERSION_NAME}")
-                setRequestProperty("Accept", "application/octet-stream")
-            }
-
+            partial.delete()
+            val conn = httpGet(info.downloadUrl, "application/vnd.android.package-archive")
             try {
                 if (conn.responseCode !in 200..299) {
-                    return@withContext Result.failure(Exception("APK download failed: HTTP ${conn.responseCode}"))
+                    return@withContext Result.failure(
+                        Exception("APK download failed: HTTP ${conn.responseCode}")
+                    )
+                }
+
+                val contentType = conn.contentType.orEmpty().lowercase()
+                if (contentType.contains("text/html") || contentType.contains("text/plain")) {
+                    return@withContext Result.failure(
+                        Exception("GitHub APK URL থেকে APK নয়, অন্য ধরনের ফাইল পাওয়া গেছে")
+                    )
                 }
 
                 val total = conn.contentLengthLong
                 var done = 0L
                 onProgress(DownloadState(running = true, totalBytes = total))
 
-                FileOutputStream(target).use { output ->
+                FileOutputStream(partial).use { output ->
                     conn.inputStream.use { input ->
                         val buffer = ByteArray(64 * 1024)
                         while (true) {
@@ -129,21 +161,136 @@ object UpdateManager {
                             if (read < 0) break
                             output.write(buffer, 0, read)
                             done += read
-                            val percent = if (total > 0) ((done * 100) / total).toInt().coerceIn(0, 100) else 0
-                            onProgress(DownloadState(running = true, progress = percent, downloadedBytes = done, totalBytes = total))
+                            val percent = if (total > 0) {
+                                ((done * 100) / total).toInt().coerceIn(0, 100)
+                            } else 0
+                            onProgress(
+                                DownloadState(
+                                    running = true,
+                                    progress = percent,
+                                    downloadedBytes = done,
+                                    totalBytes = total
+                                )
+                            )
                         }
                     }
                 }
 
-                onProgress(DownloadState(progress = 100, downloadedBytes = done, totalBytes = total, file = target))
+                if (!partial.renameTo(target)) {
+                    partial.copyTo(target, overwrite = true)
+                    partial.delete()
+                }
+
+                val validation = validateApk(context, target, info)
+                if (validation.isFailure) {
+                    target.delete()
+                    throw validation.exceptionOrNull()
+                        ?: IllegalStateException("ডাউনলোড হওয়া APK যাচাই করা যায়নি")
+                }
+
+                onProgress(
+                    DownloadState(
+                        progress = 100,
+                        downloadedBytes = target.length(),
+                        totalBytes = target.length(),
+                        file = target
+                    )
+                )
                 Result.success(target)
             } finally {
                 conn.disconnect()
             }
         } catch (e: Exception) {
+            partial.delete()
+            target.delete()
             onProgress(DownloadState(error = e.message ?: "APK download করা যায়নি"))
             Result.failure(e)
         }
+    }
+
+    /**
+     * Validates that the downloaded file is a real APK for this app, has the expected
+     * version, and is signed with the same certificate as the installed application.
+     */
+    private fun validateApk(context: Context, file: File, expected: AppUpdateInfo): Result<Unit> =
+        runCatching {
+            require(file.isFile && file.length() > 50_000L) { "APK file অসম্পূর্ণ বা খুব ছোট" }
+
+            // A real APK is a ZIP container. This also catches HTML/text downloads early.
+            ZipFile(file).use { zip ->
+                require(zip.getEntry("AndroidManifest.xml") != null) {
+                    "ডাউনলোড হওয়া ফাইলটি valid APK নয়"
+                }
+            }
+
+            val archiveInfo = getPackageInfoFromArchive(context, file)
+                ?: error("Android APK parser ফাইলটি চিনতে পারেনি")
+
+            require(archiveInfo.packageName == context.packageName) {
+                "ডাউনলোড হওয়া APK-র package আলাদা"
+            }
+
+            val archiveVersionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                archiveInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                archiveInfo.versionCode.toLong()
+            }
+            require(archiveVersionCode == expected.versionCode.toLong()) {
+                "APK version mismatch: expected ${expected.versionCode}, got $archiveVersionCode"
+            }
+
+            require(archiveVersionCode > BuildConfig.VERSION_CODE.toLong()) {
+                "ডাউনলোড হওয়া APK বর্তমান version-এর চেয়ে নতুন নয়"
+            }
+
+            require(hasSameSigningCertificate(context, archiveInfo)) {
+                "এই APK-র signing key বর্তমান অ্যাপের সাথে মেলে না"
+            }
+        }
+
+    private fun getPackageInfoFromArchive(context: Context, file: File): PackageInfo? {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        @Suppress("DEPRECATION")
+        return context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
+    }
+
+    private fun hasSameSigningCertificate(context: Context, archiveInfo: PackageInfo): Boolean {
+        val pm = context.packageManager
+        val installedInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val installed = installedInfo.signingInfo
+            val archive = archiveInfo.signingInfo
+            if (installed == null || archive == null) return false
+            val installedSigners = if (installed.hasMultipleSigners()) {
+                installed.apkContentsSigners
+            } else {
+                installed.signingCertificateHistory
+            }
+            val archiveSigners = if (archive.hasMultipleSigners()) {
+                archive.apkContentsSigners
+            } else {
+                archive.signingCertificateHistory
+            }
+            return installedSigners.any { a -> archiveSigners.any { b -> a.toByteArray().contentEquals(b.toByteArray()) } }
+        }
+
+        @Suppress("DEPRECATION")
+        val installed = installedInfo.signatures ?: return false
+        @Suppress("DEPRECATION")
+        val archive = archiveInfo.signatures ?: return false
+        return installed.any { a -> archive.any { b -> a.toByteArray().contentEquals(b.toByteArray()) } }
     }
 
     fun canInstallPackages(context: Context): Boolean =
@@ -163,9 +310,10 @@ object UpdateManager {
 
     fun installApk(context: Context, file: File): Result<Unit> {
         return try {
+            require(file.exists() && file.length() > 50_000L) { "APK file পাওয়া যায়নি" }
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
+            val intent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
+                setDataAndType(uri, APK_MIME)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }

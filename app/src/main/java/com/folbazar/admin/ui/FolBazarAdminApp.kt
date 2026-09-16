@@ -798,7 +798,7 @@ private fun SettingsScreen() {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("অ্যাপ আপডেট", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        "GitHub Release থেকে নতুন Admin APK খুঁজে দেখুন। নতুন ভার্সন থাকলে এখান থেকেই ডাউনলোড করে ইনস্টল করা যাবে।",
+                        "GitHub-এর update.json থেকে নতুন Admin APK-এর তথ্য যাচাই করা হয়। নতুন ভার্সন থাকলে এখান থেকেই নিরাপদভাবে ডাউনলোড ও ইনস্টল করা যাবে।",
                         style = MaterialTheme.typography.bodyMedium
                     )
 
@@ -896,7 +896,7 @@ private fun SettingsScreen() {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("আপডেট কীভাবে কাজ করবে", fontWeight = FontWeight.Bold)
-                    Text("1. নতুন GitHub Release হলে অ্যাপ সেটি শনাক্ত করবে।")
+                    Text("1. নতুন GitHub Release হলে update.json-এর মাধ্যমে অ্যাপ সেটি শনাক্ত করবে।")
                     Text("2. নতুন ভার্সন থাকলে এই পেজে দেখাবে।")
                     Text("3. ডাউনলোডে চাপলে অগ্রগতি (%) দেখা যাবে।")
                     Text("4. ডাউনলোড শেষ হলে এখানেই Install বাটন আসবে।")

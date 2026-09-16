@@ -162,12 +162,14 @@ jobs:
             --out "$SIGNED_APK" \
             /tmp/aligned.apk
 
-          # Verify the APK with apksigner only.
+          # Verify the APK with apksigner and Android build tools.
           "$BUILD_TOOLS/apksigner" verify --verbose "$SIGNED_APK"
 
-          # Confirm it is a real ZIP/APK and report its size.
+          # Confirm it is a real ZIP/APK and contains the binary Android manifest.
           unzip -tq "$SIGNED_APK" >/dev/null
+          unzip -l "$SIGNED_APK" | grep -q "AndroidManifest.xml"
           test -s "$SIGNED_APK"
+          echo "Verified APK size: $(stat -c%s "$SIGNED_APK") bytes"
 
           echo "apk_path=$SIGNED_APK" >> "$GITHUB_OUTPUT"
           echo "APK signing and verification succeeded."

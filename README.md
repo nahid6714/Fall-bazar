@@ -70,3 +70,6 @@ The older `release-apk.yml` is manual-only to prevent duplicate builds.
 - Settings includes GitHub Release update checking, download progress, and Android installer launch.
 - For updates to install over an existing APK, every release must use the same signing key.
 - The automatic `release.yml` workflow therefore requires `KEYSTORE_BASE64`, `KEYSTORE_STORE_PASSWORD`, and `KEYSTORE_KEY_PASSWORD` GitHub Actions secrets; the workflow detects the keystore alias automatically.
+
+## APK updater safety
+The Admin app checks `update.json` from the latest GitHub Release instead of the GitHub Releases API. Before opening Android's installer, the downloaded APK is checked for a valid APK container, the expected package name/version, and a matching signing certificate with the installed app. Every updateable release must use the same `KEYSTORE_BASE64`, `KEYSTORE_STORE_PASSWORD`, `KEYSTORE_KEY_PASSWORD`, and `KEYSTORE_KEY_ALIAS` GitHub Secrets.
