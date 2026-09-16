@@ -69,3 +69,9 @@ uploads an Actions artifact, and creates a GitHub Release such as `v1.0.12` with
 The workflow does not assume the APK filename is `app-release.apk`.
 It searches the release output directory for the actual APK produced by Gradle,
 copies it to a stable `FolBazar-Admin-vX.Y.Z.apk` filename, then publishes that file.
+
+
+### Release workflow v4
+
+The publish step uses the APK path and release tag exported by the previous step.
+It does not reference an undefined `runNumber` shell variable.
