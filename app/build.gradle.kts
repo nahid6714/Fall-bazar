@@ -1,149 +1,60 @@
-import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Properties
 
 plugins {
-  alias(libs.plugins.android.application)
-  alias(libs.plugins.kotlin.compose)
-  alias(libs.plugins.google.devtools.ksp)
-  alias(libs.plugins.roborazzi)
-  alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+}
+
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun prop(n: String): String = when (n) {
+    "SUPABASE_URL" -> localProperties.getProperty(n)
+        ?: "https://jqaswzjeyuyhtwcjnusr.supabase.co"
+    "SUPABASE_PUBLISHABLE_KEY" -> localProperties.getProperty(n)
+        ?: "sb_publishable_9Bhmik1eaSgOmed0hAYRkQ_a3yFIWuW"
+    "CLOUDINARY_CLOUD_NAME" -> localProperties.getProperty(n)
+        ?: "bak9nabq"
+    "CLOUDINARY_UPLOAD_PRESET" -> localProperties.getProperty(n)
+        ?: "fol_bazar_products"
+    else -> localProperties.getProperty(n, "")
 }
 
 android {
-  namespace = "com.example"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
-
-  defaultConfig {
-    applicationId = "com.aistudio.busterminalbd.admin"
-    minSdk = 24
-    targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
-
-    // Set from CI as -PappBuildNumber=<github.run_number> so it matches the "build-N" tag
-    // that release-apk.yml publishes to GitHub Releases. Falls back to versionCode for
-    // local/manual builds (no CI, so no real release to compare against anyway).
-    val appBuildNumber = (project.findProperty("appBuildNumber") as String?) ?: versionCode.toString()
-    buildConfigField("String", "APP_BUILD_NUMBER", "\"$appBuildNumber\"")
-    // owner/repo of the GitHub project the release-apk.yml workflow publishes to.
-    buildConfigField("String", "GITHUB_REPO", "\"busterminalbd/Bus-Terminal-Bd-Admin\"")
-
-    testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-  }
-
-  signingConfigs {
-    create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+    namespace="com.folbazar.admin"
+    compileSdk=35
+    defaultConfig {
+        applicationId="com.folbazar.admin"
+        minSdk=26
+        targetSdk=35
+        val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode=runNumber
+        versionName="1.0.$runNumber"
     }
-    create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    buildFeatures { compose=true; buildConfig=true }
+    buildTypes {
+        debug { buildConfigField("String","SUPABASE_URL","\"${prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
+        release { isMinifyEnabled=false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),"proguard-rules.pro"); buildConfigField("String","SUPABASE_URL","\"${System.getenv("SUPABASE_URL")?.takeIf { it.isNotBlank() } ?: prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${System.getenv("SUPABASE_PUBLISHABLE_KEY")?.takeIf { it.isNotBlank() } ?: prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${System.getenv("CLOUDINARY_CLOUD_NAME")?.takeIf { it.isNotBlank() } ?: prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${System.getenv("CLOUDINARY_UPLOAD_PRESET")?.takeIf { it.isNotBlank() } ?: prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
     }
-  }
-
-  buildTypes {
-    release {
-      isCrunchPngs = false
-      isMinifyEnabled = false
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
-    }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
-  }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_11
-    targetCompatibility = JavaVersion.VERSION_11
-  }
-  buildFeatures {
-    compose = true
-    buildConfig = true
-  }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
-  dependenciesInfo {
-    includeInApk = false
-    includeInBundle = true
-  }
+    compileOptions { sourceCompatibility=JavaVersion.VERSION_17; targetCompatibility=JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget="17" }
 }
 
-// Configure the Secrets Gradle Plugin to use .env and .env.example files
-// to match the convention used in Web projects.
-secrets {
-  propertiesFileName = ".env"
-  defaultPropertiesFileName = ".env.example"
-  ignoreList.add("FIREBASE_APPCHECK_DEBUG_TOKEN")
-}
-
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
-
-// Some unused dependencies are commented out below instead of being removed.
-// This makes it easy to add them back in the future if needed.
 dependencies {
-  implementation(platform(libs.androidx.compose.bom))
-  implementation(platform(libs.firebase.bom))
-  // implementation(libs.accompanist.permissions)
-  implementation(libs.androidx.activity.compose)
-  // implementation(libs.androidx.camera.camera2)
-  // implementation(libs.androidx.camera.core)
-  // implementation(libs.androidx.camera.lifecycle)
-  // implementation(libs.androidx.camera.view)
-  implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
-  implementation(libs.androidx.compose.material3)
-  implementation(libs.androidx.compose.ui)
-  implementation(libs.androidx.compose.ui.graphics)
-  implementation(libs.androidx.compose.ui.tooling.preview)
-  implementation(libs.androidx.core.ktx)
-  implementation(libs.androidx.datastore.preferences)
-  implementation(libs.androidx.security.crypto)
-  implementation(libs.androidx.lifecycle.runtime.compose)
-  implementation(libs.androidx.lifecycle.runtime.ktx)
-  implementation(libs.androidx.lifecycle.viewmodel.compose)
-  implementation(libs.androidx.navigation.compose)
-  implementation(libs.androidx.room.ktx)
-  implementation(libs.androidx.room.runtime)
-  implementation(libs.coil.compose)
-  implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
-  // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
-
-  // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
-  // Sign-In via Credential Manager:
-  // implementation(libs.firebase.auth)
-  // implementation(libs.androidx.credentials)
-  // implementation(libs.androidx.credentials.play.services)
-  // implementation(libs.googleid)
-  implementation(libs.firebase.appcheck.recaptcha)
-  implementation(libs.firebase.appcheck.debug)
-  implementation(libs.kotlinx.coroutines.android)
-  implementation(libs.kotlinx.coroutines.core)
-  implementation(libs.logging.interceptor)
-  implementation(libs.moshi.kotlin)
-  implementation(libs.okhttp)
-  // implementation(libs.play.services.location)
-  implementation(libs.retrofit)
-  testImplementation(libs.androidx.compose.ui.test.junit4)
-  testImplementation(libs.androidx.core)
-  testImplementation(libs.androidx.junit)
-  testImplementation(libs.junit)
-  testImplementation(libs.kotlinx.coroutines.test)
-  testImplementation(libs.robolectric)
-  testImplementation(libs.roborazzi)
-  testImplementation(libs.roborazzi.compose)
-  testImplementation(libs.roborazzi.junit.rule)
-  androidTestImplementation(platform(libs.androidx.compose.bom))
-  androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-  androidTestImplementation(libs.androidx.espresso.core)
-  androidTestImplementation(libs.androidx.junit)
-  androidTestImplementation(libs.androidx.runner)
-  debugImplementation(libs.androidx.compose.ui.test.manifest)
-  debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+    implementation(platform("androidx.compose:compose-bom:2025.01.00"))
+    implementation("androidx.activity:activity-compose:1.10.0")
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.navigation:navigation-compose:2.8.6")
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    debugImplementation("androidx.compose.ui:ui-tooling")
 }

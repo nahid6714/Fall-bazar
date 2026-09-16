@@ -67,9 +67,9 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     )
 
     private fun parseCoupon(o: JsonObject) = Coupon(
-        id = s(o, "id") ?: "", code = s(o, "code") ?: "", title = s(o, "title"),
-        discountType = s(o, "discount_type") ?: "percent", discountValue = d(o, "discount_value") ?: 0.0,
-        minOrder = d(o, "min_order") ?: 0.0, maxDiscount = d(o, "max_discount"),
+        id = s(o, "id") ?: "", code = s(o, "code") ?: "", title = s(o, "title", "description"),
+        discountType = (s(o, "discount_type") ?: "percentage").let { if (it == "percent") "percentage" else it }, discountValue = d(o, "discount_value") ?: 0.0,
+        minOrder = d(o, "min_order_amount", "min_order") ?: 0.0, maxDiscount = d(o, "max_discount"),
         usageLimit = i(o, "usage_limit"), usedCount = i(o, "used_count") ?: 0,
         active = b(o, "is_active") ?: true, startsAt = s(o, "starts_at"), expiresAt = s(o, "expires_at")
     )
@@ -176,12 +176,12 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     }}
 
     suspend fun addCoupon(code: String, title: String?, type: String, value: Double, minOrder: Double, maxDiscount: Double?, limit: Int?, startsAt: String?, expiresAt: String?): Result<Coupon> = runCatching { withContext(Dispatchers.IO) {
-        val body = buildJsonObject { put("code", code.uppercase()); put("title", title); put("discount_type", type); put("discount_value", value); put("min_order", minOrder); put("max_discount", maxDiscount); put("usage_limit", limit); put("starts_at", startsAt); put("expires_at", expiresAt); put("is_active", true) }
+        val body = buildJsonObject { put("code", code.uppercase()); put("description", title); put("discount_type", type); put("discount_value", value); put("min_order_amount", minOrder); put("max_discount", maxDiscount); put("usage_limit", limit); put("starts_at", startsAt); put("expires_at", expiresAt); put("is_active", true) }
         parseCoupon(array(api.post("coupons", body.toString())).first().jsonObject)
     }}
 
     suspend fun updateCoupon(c: Coupon): Result<Coupon> = runCatching { withContext(Dispatchers.IO) {
-        val body = buildJsonObject { put("code", c.code.uppercase()); put("title", c.title); put("discount_type", c.discountType); put("discount_value", c.discountValue); put("min_order", c.minOrder); put("max_discount", c.maxDiscount); put("usage_limit", c.usageLimit); put("is_active", c.active); put("starts_at", c.startsAt); put("expires_at", c.expiresAt) }
+        val body = buildJsonObject { put("code", c.code.uppercase()); put("description", c.title); put("discount_type", c.discountType); put("discount_value", c.discountValue); put("min_order_amount", c.minOrder); put("max_discount", c.maxDiscount); put("usage_limit", c.usageLimit); put("is_active", c.active); put("starts_at", c.startsAt); put("expires_at", c.expiresAt) }
         parseCoupon(array(api.patch("coupons", "id=eq.${c.id}", body.toString())).first().jsonObject)
     }}
 
