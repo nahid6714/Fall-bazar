@@ -9,10 +9,15 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: android-release-main
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Build and publish APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -52,19 +57,55 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.android"
           if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -v               -keystore "$HOME/.android/debug.keystore"               -storepass android               -alias androiddebugkey               -keypass android               -keyalg RSA               -keysize 2048               -validity 10000               -dname "CN=Android Debug,O=Android,C=US"
+            keytool -genkeypair -v \
+              -keystore "$HOME/.android/debug.keystore" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
           fi
           test -f "$HOME/.android/debug.keystore"
 
-      - name: Build release APK
+      - name: Build release APK (with Maven retry)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_UPLOAD_PRESET: ${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
-        run: gradle assembleRelease --no-daemon --stacktrace
+          GRADLE_OPTS: >-
+            -Dorg.gradle.internal.http.connectionTimeout=120000
+            -Dorg.gradle.internal.http.socketTimeout=120000
+            -Dorg.gradle.internal.repository.max.retries=5
+        shell: bash
+        run: |
+          set -u
 
-      - name: Find APK
+          max_attempts=5
+          attempt=1
+
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Gradle build attempt $attempt/$max_attempts"
+
+            if gradle assembleRelease --no-daemon --stacktrace; then
+              echo "Gradle build succeeded."
+              exit 0
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Gradle build failed after $max_attempts attempts."
+              exit 1
+            fi
+
+            sleep_seconds=$((attempt * 20))
+            echo "Dependency/network failure may be temporary. Waiting ${sleep_seconds}s before retry..."
+            sleep "$sleep_seconds"
+            attempt=$((attempt + 1))
+          done
+
+      - name: Find and verify APK
         id: apk
         shell: bash
         run: |
@@ -81,11 +122,11 @@ jobs:
           RELEASE_APK="app/build/outputs/apk/release/FolBazar-Admin-${GITHUB_RUN_NUMBER}.apk"
           cp "$APK" "$RELEASE_APK"
 
-          echo "apk_path=$RELEASE_APK" >> "$GITHUB_OUTPUT"
-          echo "APK_PATH=$RELEASE_APK"
-
-          # Verify that Android signing metadata is present.
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$RELEASE_APK"
+
+          echo "apk_path=$RELEASE_APK" >> "$GITHUB_OUTPUT"
+          echo "APK verified successfully: $RELEASE_APK"
+          ls -lh "$RELEASE_APK"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

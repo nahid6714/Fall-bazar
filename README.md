@@ -90,3 +90,11 @@ The release APK is signed with a generated Android debug signing key in CI so th
 starter/demo APK can be installed directly on Android. This is intentionally not a
 production signing key. Before public production distribution or Play Store release,
 replace it with a persistent private release keystore stored in GitHub Actions Secrets.
+
+
+## Stable CI build
+
+The release workflow includes Gradle/Maven HTTP timeouts, retry settings, and five
+build attempts with increasing waits. This protects the build from temporary Maven
+Central `429 Too Many Requests` responses. It does not treat a network rate-limit
+as an application-code failure.
