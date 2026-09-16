@@ -82,3 +82,11 @@ It does not reference an undefined `runNumber` shell variable.
 Every successful push to `main` creates a unique release tag using the GitHub Actions
 run number, for example `v1.0.15`. The workflow passes the tag through an environment
 variable, so it does not use an undefined `runNumber` shell variable.
+
+
+## Installable APK note
+
+The release APK is signed with a generated Android debug signing key in CI so this
+starter/demo APK can be installed directly on Android. This is intentionally not a
+production signing key. Before public production distribution or Play Store release,
+replace it with a persistent private release keystore stored in GitHub Actions Secrets.
