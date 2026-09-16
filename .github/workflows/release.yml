@@ -1,4 +1,4 @@
-name: Android Release APK
+name: Build and publish APK
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
         with:
           packages: ""
 
-      - name: Install required Android SDK packages
+      - name: Install Android SDK packages
         shell: bash
         run: |
           set -euo pipefail
@@ -41,7 +41,7 @@ jobs:
             "platforms;android-35" \
             "build-tools;35.0.0"
 
-      - name: Install Gradle
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10"
@@ -54,7 +54,7 @@ jobs:
           CLOUDINARY_UPLOAD_PRESET: ${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
-      - name: Locate and prepare APK
+      - name: Find APK
         id: apk
         shell: bash
         run: |
@@ -63,53 +63,48 @@ jobs:
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
 
           if [ -z "$APK" ]; then
-            echo "ERROR: No APK was produced."
-            echo "Release output directory:"
+            echo "ERROR: Gradle did not produce an APK."
             find app/build/outputs/apk/release -maxdepth 2 -type f -print || true
             exit 1
           fi
 
-          VERSION_NAME="$(grep -o 'versionName="[^"]*"' app/build.gradle.kts | head -1 | cut -d'"' -f2 || true)"
-          if [ -z "$VERSION_NAME" ]; then
-            VERSION_NAME="1.0.${GITHUB_RUN_NUMBER}"
-          fi
-
-          RELEASE_APK="app/build/outputs/apk/release/FolBazar-Admin-v${VERSION_NAME}.apk"
+          RELEASE_APK="app/build/outputs/apk/release/FolBazar-Admin-${GITHUB_RUN_NUMBER}.apk"
           cp "$APK" "$RELEASE_APK"
 
           echo "apk_path=$RELEASE_APK" >> "$GITHUB_OUTPUT"
-          echo "release_tag=v${VERSION_NAME}" >> "$GITHUB_OUTPUT"
-
-          echo "APK found:"
-          ls -lh "$APK"
-          echo "Release APK:"
-          ls -lh "$RELEASE_APK"
+          echo "APK_PATH=$RELEASE_APK"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fol-bazar-admin-release-${{ github.run_number }}
+          name: fol-bazar-admin-${{ github.run_number }}
           path: ${{ steps.apk.outputs.apk_path }}
           if-no-files-found: error
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v1.0.${{ github.run_number }}
+          RELEASE_TITLE: Fol Bazar Admin v1.0.${{ github.run_number }}
+          APK_PATH: ${{ steps.apk.outputs.apk_path }}
+        shell: bash
         run: |
           set -euo pipefail
 
-          TAG="${{ steps.apk.outputs.release_tag }}"
-          APK="${{ steps.apk.outputs.apk_path }}"
-          echo "Publishing GitHub Release: $TAG"
-          echo "APK: $APK"
+          echo "Release tag: ${RELEASE_TAG}"
+          echo "APK: ${APK_PATH}"
 
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" --clobber
-            gh release edit "$TAG" --latest
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release already exists; replacing APK..."
+            gh release upload "${RELEASE_TAG}" "${APK_PATH}" --clobber
+            gh release edit "${RELEASE_TAG}" --title "${RELEASE_TITLE}" --latest
           else
-            gh release create "$TAG" "$APK" \
-              --target "$GITHUB_SHA" \
-              --title "ফল বাজার Admin $TAG" \
+            echo "Creating GitHub Release..."
+            gh release create "${RELEASE_TAG}" "${APK_PATH}" \
+              --target "${GITHUB_SHA}" \
+              --title "${RELEASE_TITLE}" \
               --generate-notes \
               --latest
           fi
+
+          echo "GitHub Release published successfully."

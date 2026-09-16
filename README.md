@@ -75,3 +75,10 @@ copies it to a stable `FolBazar-Admin-vX.Y.Z.apk` filename, then publishes that 
 
 The publish step uses the APK path and release tag exported by the previous step.
 It does not reference an undefined `runNumber` shell variable.
+
+
+## Automatic Release v5
+
+Every successful push to `main` creates a unique release tag using the GitHub Actions
+run number, for example `v1.0.15`. The workflow passes the tag through an environment
+variable, so it does not use an undefined `runNumber` shell variable.
