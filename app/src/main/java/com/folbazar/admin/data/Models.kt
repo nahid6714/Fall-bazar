@@ -77,7 +77,10 @@ data class Customer(
     val email: String? = null,
     val phone: String? = null,
     val role: String = "customer",
-    val createdAt: String? = null
+    val avatarUrl: String? = null,
+    val address: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
 )
 
 data class Complaint(

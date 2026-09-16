@@ -1,4 +1,4 @@
-# ফল বাজার Admin — Full Control Panel v13
+# ফল বাজার Admin — Full Control Panel v31
 
 This version turns the Android app into the main admin control panel for the Supabase-backed fruit shop.
 
@@ -89,3 +89,12 @@ The admin app is aligned with the current public schema: products use `name`, `s
 - Admin can add, edit, delete, activate/deactivate variants.
 - Variant fields: label, weight_grams, price, old_price, stock_quantity, sort_order.
 - Uses the existing `product_variants` Supabase table; no schema change required.
+
+
+## v31 UI updates
+- Dashboard now links directly to every admin section.
+- Dashboard bottom refresh button removed; pull-to-refresh remains available.
+- Global top-bar logout removed; logout is available from Settings.
+- Customers page now lists all profiles with search/filter by name, phone, or Gmail, user detail view, copy actions, and phone dial action.
+- Customer detail includes available profile address and account metadata.
+- Order detail includes quick call/copy actions for the customer phone.

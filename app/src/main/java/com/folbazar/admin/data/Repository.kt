@@ -59,7 +59,8 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
 
     private fun parseCustomer(o: JsonObject) = Customer(
         id = s(o, "id") ?: "", name = s(o, "full_name", "name") ?: s(o, "email") ?: "Customer",
-        email = s(o, "email"), phone = s(o, "phone"), role = s(o, "role") ?: "customer", createdAt = s(o, "created_at")
+        email = s(o, "email"), phone = s(o, "phone"), role = s(o, "role") ?: "customer",
+        avatarUrl = s(o, "avatar_url"), address = s(o, "address"), createdAt = s(o, "created_at"), updatedAt = s(o, "updated_at")
     )
 
     private fun parseComplaint(o: JsonObject) = Complaint(
@@ -102,7 +103,7 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     }}
 
     suspend fun customers(): Result<List<Customer>> = runCatching { withContext(Dispatchers.IO) {
-        array(api.get("profiles", "?select=id,full_name,phone,email,role,created_at&order=created_at.desc")).map { parseCustomer(it.jsonObject) }
+        array(api.get("profiles", "?select=id,full_name,phone,email,role,avatar_url,address,created_at,updated_at&order=created_at.desc")).map { parseCustomer(it.jsonObject) }
     }}
 
     suspend fun complaints(): Result<List<Complaint>> = runCatching { withContext(Dispatchers.IO) {

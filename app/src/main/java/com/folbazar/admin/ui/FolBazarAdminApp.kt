@@ -4,9 +4,13 @@ package com.folbazar.admin.ui
 
 import android.net.Uri
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.rememberScrollState
@@ -54,9 +58,7 @@ fun FolBazarAdminApp() {
     )
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("ফল বাজার Admin", fontWeight = FontWeight.Bold) }, actions = {
-                IconButton(onClick = { Session.clear(context); loggedIn = false }) { Icon(Icons.Default.Logout, "লগআউট") }
-            })
+            TopAppBar(title = { Text("ফল বাজার Admin", fontWeight = FontWeight.Bold) })
         },
         bottomBar = {
             NavigationBar {
@@ -75,7 +77,7 @@ fun FolBazarAdminApp() {
             composable("complaints") { Complaints() }
             composable("coupons") { Coupons() }
             composable("wishlist") { Wishlist() }
-            composable("settings") { SettingsScreen() }
+            composable("settings") { SettingsScreen(onLogout = { Session.clear(context); loggedIn = false }) }
         }
     }
 }
@@ -109,7 +111,21 @@ fun FolBazarAdminApp() {
             Stat("অভিযোগ",complaints.count{it.status=="open"}.toString(),Icons.Default.ReportProblem,Modifier.weight(1f)) { nav.navigate("complaints") { launchSingleTop = true } }
         } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) { FilledTonalButton({ nav.navigate("products") },Modifier.weight(1f)){Icon(Icons.Default.Add,null);Spacer(Modifier.width(4.dp));Text("পণ্য")}; FilledTonalButton({ nav.navigate("orders") },Modifier.weight(1f)){Icon(Icons.Default.ShoppingCart,null);Spacer(Modifier.width(4.dp));Text("অর্ডার")} } }
-        item { OutlinedButton({ refresh++ }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Refresh,null); Spacer(Modifier.width(6.dp)); Text("সব ডাটা রিফ্রেশ") } }
+        item {
+            Text("সব সেকশন", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardShortcut("ক্যাটাগরি", Icons.Default.Category, Modifier.weight(1f)) { nav.navigate("categories") { launchSingleTop = true } }
+            DashboardShortcut("কাস্টমার", Icons.Default.People, Modifier.weight(1f)) { nav.navigate("customers") { launchSingleTop = true } }
+        } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardShortcut("অভিযোগ", Icons.Default.ReportProblem, Modifier.weight(1f)) { nav.navigate("complaints") { launchSingleTop = true } }
+            DashboardShortcut("কুপন", Icons.Default.LocalOffer, Modifier.weight(1f)) { nav.navigate("coupons") { launchSingleTop = true } }
+        } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DashboardShortcut("Wishlist", Icons.Default.Favorite, Modifier.weight(1f)) { nav.navigate("wishlist") { launchSingleTop = true } }
+            DashboardShortcut("সেটিংস", Icons.Default.Settings, Modifier.weight(1f)) { nav.navigate("settings") { launchSingleTop = true } }
+        } }
         error?.let { item { Text("Supabase: $it", color=MaterialTheme.colorScheme.error) } }
     }
 }
@@ -120,6 +136,19 @@ fun FolBazarAdminApp() {
             Icon(icon,null,tint=MaterialTheme.colorScheme.primary)
             Text(title)
             Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+        }
+    }
+}
+
+
+@Composable
+private fun DashboardShortcut(title: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    Card(modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(8.dp))
+            Text(title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Icon(Icons.Default.ChevronRight, null)
         }
     }
 }
@@ -138,18 +167,154 @@ fun FolBazarAdminApp() {
 }
 @Composable private fun AdminAction(title:String,desc:String,icon:ImageVector,onClick:()->Unit){Card(Modifier.fillMaxWidth().clickable(onClick=onClick)){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(14.dp));Column(Modifier.weight(1f)){Text(title,fontWeight=FontWeight.Bold);Text(desc,style=MaterialTheme.typography.bodySmall)};Icon(Icons.Default.ChevronRight,null)}}}
 
-@Composable private fun Products(){
-    val scope=rememberCoroutineScope(); var products by remember{mutableStateOf<List<Product>>(emptyList())}; var cats by remember{mutableStateOf<List<Category>>(emptyList())}; var loading by remember{mutableStateOf(true)}; var error by remember{mutableStateOf<String?>(null)}; var refresh by remember{mutableStateOf(0)}; var edit by remember{mutableStateOf<Product?>(null)}; var add by remember{mutableStateOf(false)}; var del by remember{mutableStateOf<Product?>(null)}; var variantProduct by remember{mutableStateOf<Product?>(null)}
-    fun reload(){refresh++}
-    LaunchedEffect(refresh){loading=true;val r=Repository();val p=r.products();val c=r.categories();products=p.getOrNull().orEmpty();cats=c.getOrNull().orEmpty();error=p.exceptionOrNull()?.message?:c.exceptionOrNull()?.message;loading=false}
-    Column(Modifier.fillMaxSize().padding(16.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("পণ্য",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("CRUD + stock + category + flags + Cloudinary")};FilledTonalButton({add=true}){Icon(Icons.Default.Add,null);Spacer(Modifier.width(4.dp));Text("নতুন")}};Spacer(Modifier.height(12.dp));when{loading->LinearProgressIndicator(Modifier.fillMaxWidth());error!=null->Text("ডাটা লোড হয়নি: $error",color=MaterialTheme.colorScheme.error);products.isEmpty()->Text("কোনো পণ্য নেই");else->RefreshableList(refresh,{refresh++}){items(products,key={it.id}){p->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){p.imageUrl?.let{AsyncImage(it,null,Modifier.size(56.dp))};Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.SemiBold);Text("৳ ${money(p.price)} • স্টক ${p.stock}");Text(p.categoryName?:"ক্যাটাগরি নেই",style=MaterialTheme.typography.bodySmall);Text(if(p.active)"Active" else "Off",color=if(p.active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)};
-                        OutlinedButton(onClick={variantProduct=p}) { Icon(Icons.Default.Scale,null); Spacer(Modifier.width(3.dp)); Text("সাইজ") };
-                        IconButton({edit=p}){Icon(Icons.Default.Edit,"এডিট")};IconButton({del=p}){Icon(Icons.Default.Delete,"ডিলিট")}}}}}}
+@Composable
+private fun Products() {
+    val scope = rememberCoroutineScope()
+    var products by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var cats by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var add by remember { mutableStateOf(false) }
+    var edit by remember { mutableStateOf<Product?>(null) }
+    var del by remember { mutableStateOf<Product?>(null) }
+
+    LaunchedEffect(refresh) {
+        loading = true
+        val r = Repository()
+        val p = r.products()
+        val c = r.categories()
+        products = p.getOrNull().orEmpty()
+        cats = c.getOrNull().orEmpty()
+        error = p.exceptionOrNull()?.message ?: c.exceptionOrNull()?.message
+        loading = false
     }
-    if(add)ProductDialog(null,cats,{add=false},{n,d,pr,op,st,ci,img,f,fl,h->scope.launch{Repository().addProduct(n,d,pr,op,st,ci,img,f,fl,h).fold({add=false;reload()},{error=it.message})}})
-    edit?.let{p->ProductDialog(p,cats,{edit=null},{n,d,pr,op,st,ci,img,f,fl,h->scope.launch{Repository().updateProduct(p.copy(name=n,description=d,price=pr,oldPrice=op,stock=st,categoryId=ci,imageUrl=img,featured=f,flashSale=fl,hotDeal=h)).fold({edit=null;reload()},{error=it.message})}})}
-    del?.let{p->Confirm("পণ্য ডিলিট করবেন?","${p.name} স্থায়ীভাবে মুছে যাবে.",{scope.launch{Repository().deleteProduct(p.id).fold({del=null;reload()},{error=it.message;del=null})}},{del=null})}
-    variantProduct?.let { product -> VariantManagerDialog(product, onDismiss={variantProduct=null}) }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("পণ্য", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("পণ্য, দাম, স্টক, সাইজ ও Cloudinary ছবি")
+            }
+            IconButton(onClick = { refresh++ }) { Icon(Icons.Default.Refresh, "রিফ্রেশ") }
+            FilledTonalButton(onClick = { add = true }) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(4.dp))
+                Text("নতুন")
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        error?.let { Text("ডাটা লোড হয়নি: $it", color = MaterialTheme.colorScheme.error) }
+
+        RefreshableList(refresh, { refresh++ }) {
+            if (loading && products.isEmpty()) {
+                item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            } else if (!loading && products.isEmpty()) {
+                item { EmptyState(if (error != null) "পণ্যের ডাটা লোড হয়নি" else "কোনো পণ্য নেই") }
+            }
+
+            items(products, key = { it.id }) { p ->
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        p.imageUrl?.let {
+                            AsyncImage(
+                                model = it,
+                                contentDescription = p.name,
+                                modifier = Modifier.size(68.dp)
+                                    .combinedClickable(
+                                        onClick = {},
+                                        onLongClick = { copyImageLink(LocalContext.current, it) }
+                                    )
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(p.name, fontWeight = FontWeight.Bold, maxLines = 2)
+                            Text("৳ ${money(p.price)}", style = MaterialTheme.typography.titleMedium)
+                            Text("স্টক ${p.stock} • ${p.categoryName ?: "ক্যাটাগরি নেই"}")
+                            Text(
+                                if (p.active) "Active" else "Off",
+                                color = if (p.active) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.error
+                            )
+                        }
+                        IconButton(onClick = { edit = p }) {
+                            Icon(Icons.Default.Edit, "এডিট")
+                        }
+                        IconButton(onClick = { del = p }) {
+                            Icon(Icons.Default.Delete, "ডিলিট")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (add) {
+        ProductDialog(
+            initial = null,
+            cats = cats,
+            onDismiss = { add = false }
+        ) { n, d, pr, op, st, ci, img, f, fl, h ->
+            scope.launch {
+                Repository().addProduct(n, d, pr, op, st, ci, img, f, fl, h).fold(
+                    { add = false; refresh++ },
+                    { error = it.message }
+                )
+            }
+        }
+    }
+
+    edit?.let { p ->
+        ProductDialog(
+            initial = p,
+            cats = cats,
+            onDismiss = { edit = null }
+        ) { n, d, pr, op, st, ci, img, f, fl, h ->
+            scope.launch {
+                Repository().updateProduct(
+                    p.copy(
+                        name = n, description = d, price = pr, oldPrice = op,
+                        stock = st, categoryId = ci, imageUrl = img,
+                        featured = f, flashSale = fl, hotDeal = h
+                    )
+                ).fold(
+                    { edit = null; refresh++ },
+                    { error = it.message }
+                )
+            }
+        }
+    }
+
+    del?.let { p ->
+        Confirm(
+            "পণ্য ডিলিট করবেন?",
+            "${p.name} স্থায়ীভাবে মুছে যাবে.",
+            {
+                scope.launch {
+                    Repository().deleteProduct(p.id).fold(
+                        { del = null; refresh++ },
+                        { error = it.message; del = null }
+                    )
+                }
+            },
+            { del = null }
+        )
+    }
+}
+
+private fun copyImageLink(context: android.content.Context, url: String) {
+    val clipboard = context.getSystemService(ClipboardManager::class.java)
+    clipboard?.setPrimaryClip(ClipData.newPlainText("Image URL", url))
+    Toast.makeText(context, "ছবির লিংক কপি হয়েছে", Toast.LENGTH_SHORT).show()
 }
 
 @Composable
@@ -314,6 +479,7 @@ private fun ProductDialog(
     var stock by remember { mutableStateOf(initial?.stock?.toString() ?: "0") }
     var cat by remember { mutableStateOf(initial?.categoryId) }
     var image by remember { mutableStateOf(initial?.imageUrl) }
+    var galleryUrls by remember { mutableStateOf(listOfNotNull(initial?.imageUrl)) }
     var featured by remember { mutableStateOf(initial?.featured ?: false) }
     var flash by remember { mutableStateOf(initial?.flashSale ?: false) }
     var hot by remember { mutableStateOf(initial?.hotDeal ?: false) }
@@ -321,31 +487,77 @@ private fun ProductDialog(
     var formError by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) {
+    var variants by remember { mutableStateOf<List<ProductVariant>>(emptyList()) }
+    var variantLoading by remember { mutableStateOf(false) }
+    var variantError by remember { mutableStateOf<String?>(null) }
+    var variantRefresh by remember { mutableStateOf(0) }
+    var addVariant by remember { mutableStateOf(false) }
+    var editVariant by remember { mutableStateOf<ProductVariant?>(null) }
+    var deleteVariant by remember { mutableStateOf<ProductVariant?>(null) }
+
+    val multiPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
             uploading = true
+            formError = null
             scope.launch {
-                CloudinaryClient(context).uploadImage(uri).fold(
-                    { uploadedUrl -> image = uploadedUrl; uploading = false },
-                    { e -> formError = e.message; uploading = false }
-                )
+                val uploaded = mutableListOf<String>()
+                var failed: String? = null
+                uris.forEach { uri ->
+                    CloudinaryClient(context).uploadImage(uri).fold(
+                        { uploaded += it },
+                        { failed = it.message ?: "ছবি আপলোড ব্যর্থ" }
+                    )
+                }
+                if (uploaded.isNotEmpty()) {
+                    galleryUrls = (galleryUrls + uploaded).distinct()
+                    if (image.isNullOrBlank()) image = uploaded.first()
+                }
+                if (failed != null) formError = failed
+                uploading = false
             }
         }
     }
-    val dialogTitle = if (initial == null) "নতুন পণ্য" else "পণ্য এডিট"
+
+    LaunchedEffect(initial?.id, variantRefresh) {
+        if (initial != null) {
+            variantLoading = true
+            Repository().variants(initial.id).fold(
+                { variants = it; variantError = null },
+                { variantError = it.message }
+            )
+            variantLoading = false
+        }
+    }
+
+    val parsedPrice = price.toDoubleOrNull()
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(dialogTitle) },
+        title = {
+            Column {
+                Text(
+                    if (initial == null) "নতুন পণ্য" else "পণ্য এডিট",
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (initial == null) "পণ্যের তথ্য ও ছবি"
+                    else "এখান থেকেই সাইজ / ভ্যারিয়েন্টও নিয়ন্ত্রণ করুন",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
         text = {
             Column(
-                Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                Modifier.heightIn(max = 620.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Field(name, { name = it }, "পণ্যের নাম")
-                Field(price, { price = it }, "দাম (৳)", KeyboardType.Decimal)
+                Field(price, { price = it }, "মূল দাম (৳)", KeyboardType.Decimal)
                 Field(old, { old = it }, "পুরনো দাম (৳)", KeyboardType.Decimal)
                 Field(stock, { stock = it }, "স্টক", KeyboardType.Number)
                 Field(desc, { desc = it }, "বিবরণ", single = false)
+
                 Box {
                     OutlinedButton(onClick = { menu = true }, modifier = Modifier.fillMaxWidth()) {
                         Text(cats.firstOrNull { it.id == cat }?.name ?: "ক্যাটাগরি নির্বাচন")
@@ -359,39 +571,197 @@ private fun ProductDialog(
                         }
                     }
                 }
-                image?.let { url ->
-                    AsyncImage(model = url, contentDescription = null, modifier = Modifier.fillMaxWidth().height(130.dp))
+
+                Text(
+                    "ছবি",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "একসাথে একাধিক ছবি নির্বাচন করা যাবে। ছবির উপর চেপে ধরে রাখলে URL কপি হবে।",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (galleryUrls.isNotEmpty()) {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(galleryUrls, key = { it }) { url ->
+                            AsyncImage(
+                                model = url,
+                                contentDescription = "Product image",
+                                modifier = Modifier.size(82.dp).combinedClickable(
+                                    onClick = { image = url },
+                                    onLongClick = { copyImageLink(context, url) }
+                                )
+                            )
+                        }
+                    }
                 }
+
                 OutlinedButton(
-                    onClick = { picker.launch("image/*") },
+                    onClick = { multiPicker.launch("image/*") },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !uploading
                 ) {
-                    Icon(Icons.Default.Image, contentDescription = null)
+                    Icon(Icons.Default.AddPhotoAlternate, null)
                     Spacer(Modifier.width(6.dp))
-                    Text(if (uploading) "আপলোড হচ্ছে…" else "Cloudinary থেকে ছবি")
+                    Text(if (uploading) "ছবি আপলোড হচ্ছে…" else "একাধিক ছবি আপলোড")
                 }
+
+                if (initial != null) {
+                    HorizontalDivider()
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "সাইজ / ভ্যারিয়েন্ট",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "৫০০ গ্রাম, ১ কেজি ইত্যাদি এখান থেকেই যোগ বা এডিট করুন।",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                        FilledTonalButton(onClick = { addVariant = true }) {
+                            Icon(Icons.Default.Add, null)
+                            Spacer(Modifier.width(4.dp))
+                            Text("যোগ")
+                        }
+                    }
+
+                    variantError?.let {
+                        Text("ভ্যারিয়েন্ট লোড হয়নি: $it", color = MaterialTheme.colorScheme.error)
+                    }
+                    if (variantLoading) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    } else if (variants.isEmpty()) {
+                        Text(
+                            "এখনও কোনো সাইজ যোগ করা হয়নি।",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        variants.forEach { v ->
+                            Card(Modifier.fillMaxWidth()) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(v.label, fontWeight = FontWeight.Bold)
+                                        Text("৳ ${money(v.price)} • স্টক ${v.stock} • ${v.weightGrams}g")
+                                        Text(
+                                            if (v.active) "Active" else "Off",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (v.active) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                    IconButton(onClick = { editVariant = v }) {
+                                        Icon(Icons.Default.Edit, "সাইজ এডিট")
+                                    }
+                                    IconButton(onClick = { deleteVariant = v }) {
+                                        Icon(Icons.Default.Delete, "সাইজ ডিলিট")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        "পণ্যটি প্রথমে সেভ করুন। এরপর একই এডিট অপশনে ঢুকেই ৫০০ গ্রাম / ১ কেজি ইত্যাদি সাইজ যোগ করতে পারবেন।",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
                 SwitchRow("Featured", featured) { featured = it }
                 SwitchRow("Flash sale", flash) { flash = it }
                 SwitchRow("Hot deal", hot) { hot = it }
-                formError?.let { message -> Text(message, color = MaterialTheme.colorScheme.error) }
+                formError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
         },
         confirmButton = {
-            val parsedPrice = price.toDoubleOrNull()
             TextButton(
                 enabled = !uploading && name.isNotBlank() && parsedPrice != null,
                 onClick = {
                     onSave(
-                        name.trim(), desc.trim().ifBlank { null }, parsedPrice ?: 0.0,
-                        old.toDoubleOrNull(), stock.toIntOrNull() ?: 0, cat, image,
-                        featured, flash, hot
+                        name.trim(),
+                        desc.trim().ifBlank { null },
+                        parsedPrice ?: 0.0,
+                        old.toDoubleOrNull(),
+                        stock.toIntOrNull() ?: 0,
+                        cat,
+                        image,
+                        featured,
+                        flash,
+                        hot
                     )
                 }
             ) { Text("সেভ") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }
     )
+
+    if (addVariant && initial != null) {
+        VariantEditorDialog(
+            null,
+            onDismiss = { addVariant = false },
+            onSave = { label, grams, vPrice, oldPrice, vStock, active, sortOrder ->
+                scope.launch {
+                    Repository().addVariant(
+                        initial.id, label, grams, vPrice, oldPrice, vStock, sortOrder
+                    ).fold(
+                        { addVariant = false; variantRefresh++ },
+                        { variantError = it.message }
+                    )
+                }
+            }
+        )
+    }
+
+    editVariant?.let { v ->
+        VariantEditorDialog(
+            v,
+            onDismiss = { editVariant = null },
+            onSave = { label, grams, vPrice, oldPrice, vStock, active, sortOrder ->
+                scope.launch {
+                    Repository().updateVariant(
+                        v.copy(
+                            label = label,
+                            weightGrams = grams,
+                            price = vPrice,
+                            oldPrice = oldPrice,
+                            stock = vStock,
+                            active = active,
+                            sortOrder = sortOrder
+                        )
+                    ).fold(
+                        { editVariant = null; variantRefresh++ },
+                        { variantError = it.message }
+                    )
+                }
+            }
+        )
+    }
+
+    deleteVariant?.let { v ->
+        Confirm(
+            "সাইজ ডিলিট করবেন?",
+            "${v.label} (${v.weightGrams}g) স্থায়ীভাবে মুছে যাবে.",
+            {
+                scope.launch {
+                    Repository().deleteVariant(v.id).fold(
+                        { deleteVariant = null; variantRefresh++ },
+                        { variantError = it.message; deleteVariant = null }
+                    )
+                }
+            },
+            { deleteVariant = null }
+        )
+    }
 }
 
 @Composable
@@ -502,25 +872,64 @@ private fun Orders() {
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("অর্ডার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Status + payment status + customer/address")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("অর্ডার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("অর্ডার, কাস্টমার, পেমেন্ট ও ডেলিভারি")
+            }
+            IconButton(onClick = { refresh++ }) {
+                Icon(Icons.Default.Refresh, "রিফ্রেশ")
+            }
+        }
         Spacer(Modifier.height(10.dp))
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
         RefreshableList(refresh, { refresh++ }) {
             if (loading && list.isEmpty()) {
                 item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             } else if (!loading && list.isEmpty()) {
-                item { EmptyState(if (error != null) "ডাটা লোড হয়নি" else "এখনও কোনো অর্ডার আসেনি") }
+                item { EmptyState(if (error != null) "অর্ডারের ডাটা লোড হয়নি" else "এখনও কোনো অর্ডার আসেনি") }
             }
+
             items(list, key = { it.id }) { o ->
-                Card(Modifier.fillMaxWidth().clickable { selected = o }) {
-                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("#${o.orderNumber}", fontWeight = FontWeight.Bold)
-                            Text("${o.customer} • ${o.phone}")
-                            Text("৳ ${money(o.total)} • ${o.paymentStatus}")
+                Card(
+                    Modifier.fillMaxWidth().clickable { selected = o },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("#${o.orderNumber}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text(o.customer, fontWeight = FontWeight.SemiBold)
+                                Text(o.phone, style = MaterialTheme.typography.bodySmall)
+                            }
+                            AssistChip(
+                                onClick = { selected = o },
+                                label = { Text(statusLabel(o.status)) }
+                            )
                         }
-                        AssistChip(onClick = { selected = o }, label = { Text(o.status) })
+                        HorizontalDivider()
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("মোট", style = MaterialTheme.typography.labelMedium)
+                                Text("৳ ${money(o.total)}", fontWeight = FontWeight.Bold)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("পেমেন্ট", style = MaterialTheme.typography.labelMedium)
+                                Text(paymentLabel(o.paymentMethod), fontWeight = FontWeight.SemiBold)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("পেমেন্ট স্ট্যাটাস", style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    statusLabel(o.paymentStatus),
+                                    color = if (o.paymentStatus == "paid")
+                                        MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -530,13 +939,277 @@ private fun Orders() {
     selected?.let { o ->
         OrderDialog(
             o,
-            { selected = null }
+            onDismiss = { selected = null }
         ) { status, pay ->
             scope.launch {
                 Repository().updateOrderStatus(o.id, status)
                 Repository().updatePaymentStatus(o.id, pay)
                 Repository().orders().fold(
-                    { list = it; selected = null },
+                    { list = it; selected = null; error = null },
+                    { error = it.message }
+                )
+            }
+        }
+    }
+}
+
+private fun statusLabel(value: String): String = when (value) {
+    "pending" -> "Pending"
+    "confirmed" -> "Confirmed"
+    "processing" -> "Processing"
+    "packed" -> "Packed"
+    "shipped" -> "Shipped"
+    "out_for_delivery" -> "Out for delivery"
+    "delivered" -> "Delivered"
+    "cancelled" -> "Cancelled"
+    "returned" -> "Returned"
+    "paid" -> "Paid"
+    "failed" -> "Failed"
+    "refunded" -> "Refunded"
+    else -> value
+}
+
+private fun paymentLabel(value: String): String = when (value) {
+    "cod" -> "Cash on delivery"
+    "bkash" -> "bKash"
+    "nagad" -> "Nagad"
+    "rocket" -> "Rocket"
+    "bank" -> "Bank"
+    "shurjopay" -> "ShurjoPay"
+    "card" -> "Card"
+    else -> value
+}
+
+@Composable
+private fun OrderDialog(
+    o: Order,
+    onDismiss: () -> Unit,
+    onSave: (String, String) -> Unit
+) {
+    var status by remember { mutableStateOf(o.status) }
+    var pay by remember { mutableStateOf(o.paymentStatus) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("অর্ডার #${o.orderNumber}", fontWeight = FontWeight.Bold)
+                Text(
+                    "${o.customer} • ${o.phone}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        text = {
+            Column(
+                Modifier.heightIn(max = 600.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OrderSection("দ্রুত অ্যাকশন") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(
+                            onClick = { dialNumber(LocalContext.current, o.phone) },
+                            modifier = Modifier.weight(1f),
+                            enabled = o.phone.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.Call, null)
+                            Spacer(Modifier.width(5.dp))
+                            Text("কল")
+                        }
+                        OutlinedButton(
+                            onClick = { copyText(LocalContext.current, o.phone, "ফোন নম্বর কপি হয়েছে") },
+                            modifier = Modifier.weight(1f),
+                            enabled = o.phone.isNotBlank()
+                        ) {
+                            Icon(Icons.Default.ContentCopy, null)
+                            Spacer(Modifier.width(5.dp))
+                            Text("ফোন কপি")
+                        }
+                    }
+                }
+                OrderSection("কাস্টমার ও ঠিকানা") {
+                    InfoLine("নাম", o.customer)
+                    InfoLine("ফোন", o.phone)
+                    InfoLine("ইমেইল", o.email)
+                    InfoLine("ঠিকানা", o.address)
+                    InfoLine("বিভাগ", o.division)
+                    InfoLine("জেলা", o.district)
+                    InfoLine("উপজেলা", o.upazila)
+                    InfoLine("Delivery area", o.deliveryArea)
+                    InfoLine("Shipping", o.shippingMethod)
+                }
+
+                OrderSection("মূল্য") {
+                    InfoLine("Subtotal", "৳ ${money(o.subtotal)}")
+                    InfoLine("Delivery", "৳ ${money(o.deliveryCharge)}")
+                    InfoLine("Discount", "৳ ${money(o.discount)}")
+                    InfoLine("Total", "৳ ${money(o.total)}", bold = true)
+                }
+
+                OrderSection("পেমেন্ট") {
+                    InfoLine("Method", paymentLabel(o.paymentMethod))
+                    InfoLine("Payment title", o.paymentTitle)
+                    InfoLine("Sender number", o.senderPhone)
+                    InfoLine("TrxID", o.trxId)
+                    InfoLine("Coupon", o.couponCode)
+                }
+
+                OrderSection("নোট") {
+                    InfoLine("Delivery note", o.deliveryNote)
+                    InfoLine("Order note", o.orderNote)
+                }
+
+                OrderSection("স্ট্যাটাস") {
+                    Text("Order status", fontWeight = FontWeight.SemiBold)
+                    SimpleChoice(status, ORDER_STATUSES) { status = it }
+                    Text("Payment status", fontWeight = FontWeight.SemiBold)
+                    SimpleChoice(pay, PAYMENT_STATUSES) { pay = it }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(status, pay) }) {
+                Text("আপডেট")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("বন্ধ") }
+        }
+    )
+}
+
+@Composable
+private fun OrderSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        )
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun InfoLine(label: String, value: String?, bold: Boolean = false) {
+    if (!value.isNullOrBlank()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+            Text(
+                "$label: ",
+                modifier = Modifier.widthIn(min = 92.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                value,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal
+            )
+        }
+    }
+}
+
+@Composable
+private fun Customers() {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var list by remember { mutableStateOf<List<Customer>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf<Customer?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var query by remember { mutableStateOf("") }
+    var filterMode by remember { mutableStateOf("সব") }
+
+    LaunchedEffect(refresh) {
+        loading = true
+        Repository().customers().fold({ list = it; error = null }, { error = it.message })
+        loading = false
+    }
+
+    val filtered = remember(list, query, filterMode) {
+        val q = query.trim()
+        if (q.isBlank()) list else list.filter { c ->
+            when (filterMode) {
+                "নাম" -> c.name.contains(q, ignoreCase = true)
+                "নম্বর" -> (c.phone ?: "").contains(q, ignoreCase = true)
+                "Gmail" -> (c.email ?: "").contains(q, ignoreCase = true)
+                else -> c.name.contains(q, true) || (c.phone ?: "").contains(q, true) || (c.email ?: "").contains(q, true)
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("সকল ইউজার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("${list.size} জন • নাম, নম্বর বা Gmail দিয়ে খুঁজুন")
+            }
+            IconButton(onClick = { refresh++ }) { Icon(Icons.Default.Refresh, "রিফ্রেশ") }
+        }
+        Spacer(Modifier.height(10.dp))
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, null) },
+            trailingIcon = if (query.isNotBlank()) ({ IconButton(onClick = { query = "" }) { Icon(Icons.Default.Clear, "মুছুন") } }) else null,
+            label = { Text("ইউজার খুঁজুন") },
+            placeholder = { Text("নাম / ফোন / Gmail") }
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf("সব", "নাম", "নম্বর", "Gmail").forEach { mode ->
+                FilterChip(selected = filterMode == mode, onClick = { filterMode = mode }, label = { Text(mode) })
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        RefreshableList(refresh, { refresh++ }) {
+            if (loading && list.isEmpty()) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            else if (!loading && list.isEmpty()) item { EmptyState(if (error != null) "ডাটা লোড হয়নি" else "এখানে কোনো ইউজার নেই") }
+            else if (!loading && filtered.isEmpty()) item { EmptyState("এই ফিল্টারে কোনো ইউজার পাওয়া যায়নি") }
+
+            items(filtered, key = { it.id }) { c ->
+                Card(Modifier.fillMaxWidth().clickable { selected = c }) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(c.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text(c.email ?: "Gmail দেওয়া নেই", style = MaterialTheme.typography.bodySmall)
+                                Text(c.phone ?: "নম্বর দেওয়া নেই", style = MaterialTheme.typography.bodySmall)
+                            }
+                            AssistChip(onClick = { selected = c }, label = { Text(c.role) })
+                        }
+                        if (!c.phone.isNullOrBlank()) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilledTonalButton(onClick = { dialNumber(context, c.phone) }, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.Call, null); Spacer(Modifier.width(5.dp)); Text("কল")
+                                }
+                                OutlinedButton(onClick = { copyText(context, c.phone, "নম্বর কপি হয়েছে") }, modifier = Modifier.weight(1f)) {
+                                    Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(5.dp)); Text("কপি")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    selected?.let { c ->
+        UserDetailsDialog(c, onDismiss = { selected = null }) { role ->
+            scope.launch {
+                Repository().updateCustomerRole(c.id, role).fold(
+                    { selected = null; refresh++ },
                     { error = it.message }
                 )
             }
@@ -545,57 +1218,60 @@ private fun Orders() {
 }
 
 @Composable
-private fun Customers() {
-    val scope = rememberCoroutineScope()
-    var list by remember { mutableStateOf<List<Customer>>(emptyList()) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var selected by remember { mutableStateOf<Customer?>(null) }
-    var refresh by remember { mutableStateOf(0) }
-    var loading by remember { mutableStateOf(true) }
-
-    LaunchedEffect(refresh) {
-        loading = true
-        Repository().customers().fold(
-            { list = it; error = null },
-            { error = it.message }
-        )
-        loading = false
-    }
-
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("কাস্টমার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("Profile + role management")
-        Spacer(Modifier.height(10.dp))
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        RefreshableList(refresh, { refresh++ }) {
-            if (loading && list.isEmpty()) {
-                item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            } else if (!loading && list.isEmpty()) {
-                item { EmptyState(if (error != null) "ডাটা লোড হয়নি" else "এখানে কোনো কাস্টমার ডাটা নেই") }
-            }
-            items(list, key = { it.id }) { c ->
-                Card(Modifier.fillMaxWidth().clickable { selected = c }) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(c.name, fontWeight = FontWeight.SemiBold)
-                        Text(c.email ?: "—")
-                        Text(c.phone ?: "—")
-                        AssistChip(onClick = { selected = c }, label = { Text(c.role) })
+private fun UserDetailsDialog(c: Customer, onDismiss: () -> Unit, onRoleSave: (String) -> Unit) {
+    val context = LocalContext.current
+    var role by remember(c.id) { mutableStateOf(c.role) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ইউজার তথ্য", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                UserInfoCard("ব্যক্তিগত তথ্য") {
+                    CopyInfoLine("নাম", c.name, context)
+                    CopyInfoLine("ফোন", c.phone, context)
+                    CopyInfoLine("Gmail", c.email, context)
+                    CopyInfoLine("ঠিকানা", c.address, context)
+                    CopyInfoLine("User ID", c.id, context)
+                    CopyInfoLine("যোগদানের সময়", c.createdAt, context)
+                }
+                UserInfoCard("দ্রুত অ্যাকশন") {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!c.phone.isNullOrBlank()) FilledTonalButton({ dialNumber(context, c.phone) }, Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(5.dp)); Text("কল") }
+                        if (!c.email.isNullOrBlank()) OutlinedButton({ copyText(context, c.email, "Gmail কপি হয়েছে") }, Modifier.weight(1f)) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(5.dp)); Text("Gmail কপি") }
                     }
                 }
+                Text("Role", fontWeight = FontWeight.SemiBold)
+                SimpleChoice(role, CUSTOMER_ROLES) { role = it }
             }
-        }
-    }
+        },
+        confirmButton = { TextButton(onClick = { onRoleSave(role) }) { Text("সেভ") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("বন্ধ") } }
+    )
+}
 
-    selected?.let { c ->
-        RoleDialog(c, { selected = null }) { role ->
-            scope.launch {
-                Repository().updateCustomerRole(c.id, role).fold(
-                    { selected = null; refresh++ },
-                    { error = it.message; selected = null }
-                )
-            }
-        }
+@Composable
+private fun UserInfoCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Card(Modifier.fillMaxWidth()) { Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) { Text(title, fontWeight = FontWeight.Bold); content() } }
+}
+
+@Composable
+private fun CopyInfoLine(label: String, value: String?, context: android.content.Context) {
+    if (!value.isNullOrBlank()) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) { Text(label, style = MaterialTheme.typography.labelSmall); Text(value) }
+        IconButton(onClick = { copyText(context, value, "$label কপি হয়েছে") }) { Icon(Icons.Default.ContentCopy, "কপি") }
     }
+}
+
+private fun copyText(context: android.content.Context, value: String?, message: String) {
+    if (value.isNullOrBlank()) return
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("Fol Bazar", value))
+    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+}
+
+private fun dialNumber(context: android.content.Context, phone: String?) {
+    if (phone.isNullOrBlank()) return
+    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${Uri.encode(phone)}")))
 }
 
 @Composable
@@ -839,7 +1515,7 @@ fun Coupons() {
 
 
 @Composable
-private fun SettingsScreen() {
+private fun SettingsScreen(onLogout: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var checking by remember { mutableStateOf(false) }
@@ -990,6 +1666,21 @@ private fun SettingsScreen() {
                     Text("3. ডাউনলোডে চাপলে অগ্রগতি (%) দেখা যাবে।")
                     Text("4. ডাউনলোড শেষ হলে এখানেই Install বাটন আসবে।")
                     Text("5. Android-এর নিরাপত্তার কারণে প্রথমবার এই অ্যাপের জন্য 'Install unknown apps' অনুমতি লাগতে পারে।")
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("অ্যাকাউন্ট", fontWeight = FontWeight.Bold)
+                        Text("Admin account থেকে নিরাপদে লগআউট করুন")
+                    }
+                    OutlinedButton(onClick = onLogout) {
+                        Icon(Icons.Default.Logout, null)
+                        Spacer(Modifier.width(5.dp))
+                        Text("লগআউট")
+                    }
                 }
             }
         }
