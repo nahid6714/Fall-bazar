@@ -1,0 +1,113 @@
+name: Android CI & Artifact Build
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v3
+
+    - name: Ensure .env file exists
+      run: touch .env
+
+    - name: Decode debug keystore if available
+      run: |
+        if [ ! -f "debug.keystore" ] && [ -f "debug.keystore.base64" ]; then
+          base64 -d debug.keystore.base64 > debug.keystore
+        fi
+
+    - name: Decode Release Keystore from Secret
+      run: |
+        if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release.keystore 2>/dev/null || rm -f release.keystore
+          if [ -s release.keystore ]; then
+            echo "Release keystore decoded successfully."
+          else
+            echo "Decoded release.keystore is empty or invalid, removing it."
+            rm -f release.keystore
+          fi
+        fi
+
+    - name: Build Release APK
+      env:
+        KEYSTORE_PATH: ${{ github.workspace }}/release.keystore
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        VERSION_CODE: ${{ github.run_number }}
+        VERSION_NAME: "1.0.${{ github.run_number }}"
+      run: |
+        if [ ! -s release.keystore ]; then
+          rm -f release.keystore
+        fi
+        gradle assembleRelease --stacktrace
+
+    - name: Upload Release APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MemoApp-Release-APK
+        path: app/build/outputs/apk/release/*.apk
+        retention-days: 14
+
+    - name: Publish GitHub Release
+      if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')) && github.event_name == 'push'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: "v1.0.${{ github.run_number }}"
+        name: "Release v1.0.${{ github.run_number }}"
+        body: |
+          ## 🚀 New Release v1.0.${{ github.run_number }}
+          
+          **Commit:** ${{ github.sha }}
+          **Message:** ${{ github.event.head_commit.message }}
+          **Build Number:** ${{ github.run_number }}
+        files: app/build/outputs/apk/release/*.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update update.json for Auto Update
+      if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')) && github.event_name == 'push'
+      run: |
+        VERSION_CODE="${{ github.run_number }}"
+        VERSION_NAME="1.0.${{ github.run_number }}"
+        DOWNLOAD_URL="https://github.com/nahid6714/tools/releases/download/v1.0.${{ github.run_number }}/app-release.apk"
+        
+        COMMIT_MSG=$(git log -1 --pretty=format:"%s" | sed 's/"/\\"/g' | tr '\n' ' ')
+        if [ -z "$COMMIT_MSG" ]; then
+          COMMIT_MSG="Performance improvements and bug fixes"
+        fi
+        
+        cat <<EOF > update.json
+        {
+          "versionCode": ${VERSION_CODE},
+          "versionName": "${VERSION_NAME}",
+          "downloadUrl": "${DOWNLOAD_URL}",
+          "releaseNotes": "• ${COMMIT_MSG}\n• পারফরম্যান্স ও স্থায়িত্ব বৃদ্ধি করা হয়েছে।",
+          "minSupportedVersion": 1
+        }
+        EOF
+        
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add update.json
+        git commit -m "chore: auto-update update.json to v${VERSION_NAME} [skip ci]" || echo "No changes to commit"
+        git push origin HEAD:${{ github.ref_name }} || git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
