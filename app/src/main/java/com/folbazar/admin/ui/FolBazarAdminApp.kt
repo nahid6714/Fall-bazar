@@ -124,10 +124,100 @@ fun FolBazarAdminApp() {
     del?.let{p->Confirm("পণ্য ডিলিট করবেন?","${p.name} স্থায়ীভাবে মুছে যাবে.",{scope.launch{Repository().deleteProduct(p.id).fold({del=null;reload()},{error=it.message;del=null})}},{del=null})}
 }
 
-@Composable private fun ProductDialog(initial:Product?,cats:List<Category>,onDismiss:()->Unit,onSave:(String,String?,Double,Double?,Int,String?,String?,Boolean,Boolean,Boolean)->Unit){
-    val context=LocalContext.current;val scope=rememberCoroutineScope();var name by remember{mutableStateOf(initial?.name?:"")};var desc by remember{mutableStateOf(initial?.description?:"")};var price by remember{mutableStateOf(initial?.price?.toString()?:"")};var old by remember{mutableStateOf(initial?.oldPrice?.toString()?: "")};var stock by remember{mutableStateOf(initial?.stock?.toString()?: "0")};var cat by remember{mutableStateOf(initial?.categoryId)};var image by remember{mutableStateOf(initial?.imageUrl)};var featured by remember{mutableStateOf(initial?.featured?:false)};var flash by remember{mutableStateOf(initial?.flashSale?:false)};var hot by remember{mutableStateOf(initial?.hotDeal?:false)};var uploading by remember{mutableStateOf(false)};var formError by remember{mutableStateOf<String?>(null)};var menu by remember{mutableStateOf(false)}
-    val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){uri:Uri?->if(uri!=null){uploading=true;scope.launch{CloudinaryClient(context).uploadImage(uri).fold({image=it;uploading=false},{formError=it.message;uploading=false})}}}
-    AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"নতুন পণ্য" else "পণ্য এডিট")},text={Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){Field(name,{name=it},"পণ্যের নাম");Field(price,{price=it},"দাম (৳)",KeyboardType.Decimal);Field(old,{old=it},"পুরনো দাম (৳)",KeyboardType.Decimal);Field(stock,{stock=it},"স্টক",KeyboardType.Number);Field(desc,{desc=it},"বিবরণ",single=false);Box{OutlinedButton({menu=true},Modifier.fillMaxWidth()){Text(cats.firstOrNull{it.id==cat}?.name?:"ক্যাটাগরি নির্বাচন")};DropdownMenu(menu,{menu=false}){cats.forEach{DropdownMenuItem(text={Text(it.name)},onClick={cat=it.id;menu=false})}}};image?.let{AsyncImage(it,null,Modifier.fillMaxWidth().height(130.dp))};OutlinedButton({picker.launch("image/*")},Modifier.fillMaxWidth(),enabled=!uploading){Icon(Icons.Default.Image,null);Spacer(Modifier.width(6.dp));Text(if(uploading)"আপলোড হচ্ছে…":"Cloudinary থেকে ছবি")};SwitchRow("Featured",featured){featured=it};SwitchRow("Flash sale",flash){flash=it};SwitchRow("Hot deal",hot){hot=it};formError?.let{Text(it,color=MaterialTheme.colorScheme.error)}}},confirmButton={TextButton(enabled=!uploading&&name.isNotBlank()&&price.toDoubleOrNull()!=null,onClick={onSave(name.trim(),desc.trim().ifBlank{null},price.toDoubleOrNull()?:0.0,old.toDoubleOrNull(),stock.toIntOrNull()?:0,cat,image,featured,flash,hot)}){Text("সেভ")}},dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}})
+@Composable
+private fun ProductDialog(
+    initial: Product?,
+    cats: List<Category>,
+    onDismiss: () -> Unit,
+    onSave: (String, String?, Double, Double?, Int, String?, String?, Boolean, Boolean, Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var name by remember { mutableStateOf(initial?.name ?: "") }
+    var desc by remember { mutableStateOf(initial?.description ?: "") }
+    var price by remember { mutableStateOf(initial?.price?.toString() ?: "") }
+    var old by remember { mutableStateOf(initial?.oldPrice?.toString() ?: "") }
+    var stock by remember { mutableStateOf(initial?.stock?.toString() ?: "0") }
+    var cat by remember { mutableStateOf(initial?.categoryId) }
+    var image by remember { mutableStateOf(initial?.imageUrl) }
+    var featured by remember { mutableStateOf(initial?.featured ?: false) }
+    var flash by remember { mutableStateOf(initial?.flashSale ?: false) }
+    var hot by remember { mutableStateOf(initial?.hotDeal ?: false) }
+    var uploading by remember { mutableStateOf(false) }
+    var formError by remember { mutableStateOf<String?>(null) }
+    var menu by remember { mutableStateOf(false) }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            uploading = true
+            scope.launch {
+                CloudinaryClient(context).uploadImage(uri).fold(
+                    { uploadedUrl -> image = uploadedUrl; uploading = false },
+                    { e -> formError = e.message; uploading = false }
+                )
+            }
+        }
+    }
+    val dialogTitle = if (initial == null) "নতুন পণ্য" else "পণ্য এডিট"
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(dialogTitle) },
+        text = {
+            Column(
+                Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Field(name, { name = it }, "পণ্যের নাম")
+                Field(price, { price = it }, "দাম (৳)", KeyboardType.Decimal)
+                Field(old, { old = it }, "পুরনো দাম (৳)", KeyboardType.Decimal)
+                Field(stock, { stock = it }, "স্টক", KeyboardType.Number)
+                Field(desc, { desc = it }, "বিবরণ", single = false)
+                Box {
+                    OutlinedButton(onClick = { menu = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(cats.firstOrNull { it.id == cat }?.name ?: "ক্যাটাগরি নির্বাচন")
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        cats.forEach { category ->
+                            DropdownMenuItem(
+                                text = { Text(category.name) },
+                                onClick = { cat = category.id; menu = false }
+                            )
+                        }
+                    }
+                }
+                image?.let { url ->
+                    AsyncImage(model = url, contentDescription = null, modifier = Modifier.fillMaxWidth().height(130.dp))
+                }
+                OutlinedButton(
+                    onClick = { picker.launch("image/*") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uploading
+                ) {
+                    Icon(Icons.Default.Image, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (uploading) "আপলোড হচ্ছে…" else "Cloudinary থেকে ছবি")
+                }
+                SwitchRow("Featured", featured) { featured = it }
+                SwitchRow("Flash sale", flash) { flash = it }
+                SwitchRow("Hot deal", hot) { hot = it }
+                formError?.let { message -> Text(message, color = MaterialTheme.colorScheme.error) }
+            }
+        },
+        confirmButton = {
+            val parsedPrice = price.toDoubleOrNull()
+            TextButton(
+                enabled = !uploading && name.isNotBlank() && parsedPrice != null,
+                onClick = {
+                    onSave(
+                        name.trim(), desc.trim().ifBlank { null }, parsedPrice ?: 0.0,
+                        old.toDoubleOrNull(), stock.toIntOrNull() ?: 0, cat, image,
+                        featured, flash, hot
+                    )
+                }
+            ) { Text("সেভ") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }
+    )
 }
 
 @Composable private fun Categories(){val scope=rememberCoroutineScope();var list by remember{mutableStateOf<List<Category>>(emptyList())};var refresh by remember{mutableStateOf(0)};var error by remember{mutableStateOf<String?>(null)};var add by remember{mutableStateOf(false)};var edit by remember{mutableStateOf<Category?>(null)};var del by remember{mutableStateOf<Category?>(null)};LaunchedEffect(refresh){Repository().categories().fold({list=it;error=null},{error=it.message})};Column(Modifier.fillMaxSize().padding(16.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("ক্যাটাগরি",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));FilledTonalButton({add=true}){Icon(Icons.Default.Add,null);Text("নতুন")}};Spacer(Modifier.height(10.dp));error?.let{Text(it,color=MaterialTheme.colorScheme.error)};LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(list,key={it.id}){c->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){c.imageUrl?.let{AsyncImage(it,null,Modifier.size(48.dp))};Column(Modifier.weight(1f)){Text(c.name,fontWeight=FontWeight.SemiBold);Text(if(c.active)"Active" else "Off")};IconButton({edit=c}){Icon(Icons.Default.Edit,null)};IconButton({del=c}){Icon(Icons.Default.Delete,null)}}}}}};if(add)CategoryDialog(null,{add=false},{n,d,img,o->scope.launch{Repository().addCategory(n,d,img,o).fold({add=false;refresh++},{error=it.message})}});edit?.let{c->CategoryDialog(c,{edit=null},{n,d,img,o->scope.launch{Repository().updateCategory(c.copy(name=n,description=d,imageUrl=img,sortOrder=o)).fold({edit=null;refresh++},{error=it.message})}})};del?.let{c->Confirm("ক্যাটাগরি ডিলিট?","${c.name} মুছে যাবে.",{scope.launch{Repository().deleteCategory(c.id).fold({del=null;refresh++},{error=it.message;del=null})}},{del=null})}}
