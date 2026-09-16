@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Backup rules: the admin session file (Supabase access/refresh tokens) must never be
-   included in Android's classic full-data backup (used on API < 31 devices).
-   See https://developer.android.com/guide/topics/data/autobackup
--->
-<full-backup-content>
-    <exclude domain="sharedpref" path="btbd_admin_session_secure.xml" />
-    <exclude domain="sharedpref" path="btbd_admin_session.xml" />
-</full-backup-content>
