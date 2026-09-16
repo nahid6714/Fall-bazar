@@ -55,3 +55,10 @@ The Supabase service-role/secret key must never be placed inside the Android app
 4. Sync Gradle and run the app.
 
 `local.properties` and keystores are ignored by Git.
+
+
+## Automatic release fix
+
+The GitHub Actions workflow uses Android SDK command-line tools without requesting the
+removed legacy `tools` package. Every successful push to `main` builds the release APK,
+uploads an Actions artifact, and creates a GitHub Release such as `v1.0.12` with the APK attached.
