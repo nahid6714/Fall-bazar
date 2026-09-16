@@ -9,6 +9,7 @@ import java.io.IOException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 /** Thin REST wrapper around Supabase (PostgREST + GoTrue auth). No SDK needed. */
 class SupabaseClient {
