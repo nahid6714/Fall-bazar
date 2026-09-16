@@ -10,6 +10,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -167,9 +168,11 @@ private fun DashboardShortcut(title: String, icon: ImageVector, modifier: Modifi
 }
 @Composable private fun AdminAction(title:String,desc:String,icon:ImageVector,onClick:()->Unit){Card(Modifier.fillMaxWidth().clickable(onClick=onClick)){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(14.dp));Column(Modifier.weight(1f)){Text(title,fontWeight=FontWeight.Bold);Text(desc,style=MaterialTheme.typography.bodySmall)};Icon(Icons.Default.ChevronRight,null)}}}
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Products() {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var cats by remember { mutableStateOf<List<Category>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -231,7 +234,7 @@ private fun Products() {
                                 modifier = Modifier.size(68.dp)
                                     .combinedClickable(
                                         onClick = {},
-                                        onLongClick = { copyImageLink(LocalContext.current, it) }
+                                        onLongClick = { copyImageLink(context, it) }
                                     )
                             )
                         }
@@ -463,6 +466,7 @@ private fun EmptyState(message: String) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ProductDialog(
     initial: Product?,
@@ -912,6 +916,7 @@ private fun OrderDetailsDialog(
     onDismiss: () -> Unit,
     onSave: (String, String) -> Unit
 ) {
+    val context = LocalContext.current
     var status by remember { mutableStateOf(o.status) }
     var pay by remember { mutableStateOf(o.paymentStatus) }
 
@@ -934,7 +939,7 @@ private fun OrderDetailsDialog(
                 OrderSection("দ্রুত অ্যাকশন") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalButton(
-                            onClick = { dialNumber(LocalContext.current, o.phone) },
+                            onClick = { dialNumber(context, o.phone) },
                             modifier = Modifier.weight(1f),
                             enabled = o.phone.isNotBlank()
                         ) {
@@ -943,7 +948,7 @@ private fun OrderDetailsDialog(
                             Text("কল")
                         }
                         OutlinedButton(
-                            onClick = { copyText(LocalContext.current, o.phone, "ফোন নম্বর কপি হয়েছে") },
+                            onClick = { copyText(context, o.phone, "ফোন নম্বর কপি হয়েছে") },
                             modifier = Modifier.weight(1f),
                             enabled = o.phone.isNotBlank()
                         ) {
