@@ -27,7 +27,9 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
 
     private fun parseCustomer(o: JsonObject) = Customer(
         id = o["id"]?.jsonPrimitive?.content ?: "",
-        name = (o["name"] ?: o["full_name"])?.jsonPrimitive?.contentOrNull ?: "Customer",
+        name = (o["full_name"] ?: o["name"])?.jsonPrimitive?.contentOrNull
+            ?: o["email"]?.jsonPrimitive?.contentOrNull
+            ?: "Customer",
         phone = o["phone"]?.jsonPrimitive?.contentOrNull,
         address = o["address"]?.jsonPrimitive?.contentOrNull,
         createdAt = o["created_at"]?.jsonPrimitive?.contentOrNull
@@ -51,7 +53,9 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
 
     suspend fun customers(): Result<List<Customer>> = runCatching {
         withContext(Dispatchers.IO) {
-            Json.parseToJsonElement(api.get("customers", "?select=*&order=created_at.desc"))
+            // The project's Supabase schema stores customer accounts in
+            // public.profiles (linked to auth.users), not public.customers.
+            Json.parseToJsonElement(api.get("profiles", "?select=id,full_name,phone,email,created_at&order=created_at.desc"))
                 .jsonArray.map { parseCustomer(it.jsonObject) }
         }
     }

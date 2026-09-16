@@ -121,3 +121,10 @@ The CI failure was traced directly to `MainActivity.kt`: `Session` was imported 
 and initialized twice. The duplicate import/initialization has been removed. A separate
 Kotlin compilation check now runs before the full release APK build so source-level
 compilation errors are detected early.
+
+
+## v11 customer-table fix
+
+The Supabase schema uses `public.profiles` for customer accounts; there is no
+`public.customers` table. The Admin app now reads customer profiles from
+`profiles` instead of requesting the nonexistent `customers` table.
