@@ -34,6 +34,9 @@ android {
         versionName="1.0.$runNumber"
     }
     buildFeatures { compose=true; buildConfig=true }
+    // The repository still contains legacy com.example source files from the old app.
+    // Keep them in Git for history, but exclude them from this Fol Bazar build.
+    sourceSets["main"].java.exclude("com/example/**")
     buildTypes {
         debug { buildConfigField("String","SUPABASE_URL","\"${prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
         release { isMinifyEnabled=false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),"proguard-rules.pro"); buildConfigField("String","SUPABASE_URL","\"${System.getenv("SUPABASE_URL")?.takeIf { it.isNotBlank() } ?: prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${System.getenv("SUPABASE_PUBLISHABLE_KEY")?.takeIf { it.isNotBlank() } ?: prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${System.getenv("CLOUDINARY_CLOUD_NAME")?.takeIf { it.isNotBlank() } ?: prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${System.getenv("CLOUDINARY_UPLOAD_PRESET")?.takeIf { it.isNotBlank() } ?: prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
