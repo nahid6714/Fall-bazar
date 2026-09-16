@@ -765,6 +765,59 @@ private fun ProductDialog(
 }
 
 @Composable
+private fun CategoryEditorDialog(
+    initial: Category?,
+    onDismiss: () -> Unit,
+    onSave: (String, String?, String?, Int) -> Unit
+) {
+    var name by remember { mutableStateOf(initial?.name ?: "") }
+    var description by remember { mutableStateOf(initial?.description ?: "") }
+    var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
+    var sortOrder by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "নতুন ক্যাটাগরি" else "ক্যাটাগরি এডিট") },
+        text = {
+            Column(
+                Modifier
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Field(name, { name = it }, "ক্যাটাগরির নাম")
+                Field(description, { description = it }, "বিবরণ", single = false)
+                Field(imageUrl, { imageUrl = it }, "ছবির URL")
+                Field(sortOrder, { sortOrder = it }, "Sort order", KeyboardType.Number)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    Text(
+                        if (initial?.active == false) "বর্তমান অবস্থা: Off" else "বর্তমান অবস্থা: Active",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank(),
+                onClick = {
+                    onSave(
+                        name.trim(),
+                        description.trim().ifBlank { null },
+                        imageUrl.trim().ifBlank { null },
+                        sortOrder.toIntOrNull() ?: 0
+                    )
+                }
+            ) { Text("সেভ") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("বাতিল") }
+        }
+    )
+}
+
+
+@Composable
 private fun Categories() {
     val scope = rememberCoroutineScope()
     var list by remember { mutableStateOf<List<Category>>(emptyList()) }
@@ -817,7 +870,7 @@ private fun Categories() {
     }
 
     if (add) {
-        CategoryDialog(null, { add = false }) { n, d, img, o ->
+        CategoryEditorDialog(null, { add = false }) { n: String, d: String?, img: String?, o: Int ->
             scope.launch {
                 Repository().addCategory(n, d, img, o).fold(
                     { add = false; refresh++ },
@@ -827,7 +880,7 @@ private fun Categories() {
         }
     }
     edit?.let { c ->
-        CategoryDialog(c, { edit = null }) { n, d, img, o ->
+        CategoryEditorDialog(c, { edit = null }) { n: String, d: String?, img: String?, o: Int ->
             scope.launch {
                 Repository().updateCategory(c.copy(name = n, description = d, imageUrl = img, sortOrder = o)).fold(
                     { edit = null; refresh++ },
@@ -854,134 +907,7 @@ private fun Categories() {
 }
 
 @Composable
-private fun Orders() {
-    val scope = rememberCoroutineScope()
-    var list by remember { mutableStateOf<List<Order>>(emptyList()) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var refresh by remember { mutableStateOf(0) }
-    var loading by remember { mutableStateOf(true) }
-    var selected by remember { mutableStateOf<Order?>(null) }
-
-    LaunchedEffect(refresh) {
-        loading = true
-        Repository().orders().fold(
-            { list = it; error = null },
-            { error = it.message }
-        )
-        loading = false
-    }
-
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("অর্ডার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("অর্ডার, কাস্টমার, পেমেন্ট ও ডেলিভারি")
-            }
-            IconButton(onClick = { refresh++ }) {
-                Icon(Icons.Default.Refresh, "রিফ্রেশ")
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-        RefreshableList(refresh, { refresh++ }) {
-            if (loading && list.isEmpty()) {
-                item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            } else if (!loading && list.isEmpty()) {
-                item { EmptyState(if (error != null) "অর্ডারের ডাটা লোড হয়নি" else "এখনও কোনো অর্ডার আসেনি") }
-            }
-
-            items(list, key = { it.id }) { o ->
-                Card(
-                    Modifier.fillMaxWidth().clickable { selected = o },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                    )
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("#${o.orderNumber}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                                Text(o.customer, fontWeight = FontWeight.SemiBold)
-                                Text(o.phone, style = MaterialTheme.typography.bodySmall)
-                            }
-                            AssistChip(
-                                onClick = { selected = o },
-                                label = { Text(statusLabel(o.status)) }
-                            )
-                        }
-                        HorizontalDivider()
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("মোট", style = MaterialTheme.typography.labelMedium)
-                                Text("৳ ${money(o.total)}", fontWeight = FontWeight.Bold)
-                            }
-                            Column(Modifier.weight(1f)) {
-                                Text("পেমেন্ট", style = MaterialTheme.typography.labelMedium)
-                                Text(paymentLabel(o.paymentMethod), fontWeight = FontWeight.SemiBold)
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("পেমেন্ট স্ট্যাটাস", style = MaterialTheme.typography.labelMedium)
-                                Text(
-                                    statusLabel(o.paymentStatus),
-                                    color = if (o.paymentStatus == "paid")
-                                        MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    selected?.let { o ->
-        OrderDialog(
-            o,
-            onDismiss = { selected = null }
-        ) { status, pay ->
-            scope.launch {
-                Repository().updateOrderStatus(o.id, status)
-                Repository().updatePaymentStatus(o.id, pay)
-                Repository().orders().fold(
-                    { list = it; selected = null; error = null },
-                    { error = it.message }
-                )
-            }
-        }
-    }
-}
-
-private fun statusLabel(value: String): String = when (value) {
-    "pending" -> "Pending"
-    "confirmed" -> "Confirmed"
-    "processing" -> "Processing"
-    "packed" -> "Packed"
-    "shipped" -> "Shipped"
-    "out_for_delivery" -> "Out for delivery"
-    "delivered" -> "Delivered"
-    "cancelled" -> "Cancelled"
-    "returned" -> "Returned"
-    "paid" -> "Paid"
-    "failed" -> "Failed"
-    "refunded" -> "Refunded"
-    else -> value
-}
-
-private fun paymentLabel(value: String): String = when (value) {
-    "cod" -> "Cash on delivery"
-    "bkash" -> "bKash"
-    "nagad" -> "Nagad"
-    "rocket" -> "Rocket"
-    "bank" -> "Bank"
-    "shurjopay" -> "ShurjoPay"
-    "card" -> "Card"
-    else -> value
-}
-
-@Composable
-private fun OrderDialog(
+private fun OrderDetailsDialog(
     o: Order,
     onDismiss: () -> Unit,
     onSave: (String, String) -> Unit
@@ -1077,6 +1003,137 @@ private fun OrderDialog(
         }
     )
 }
+
+
+@Composable
+private fun Orders() {
+    val scope = rememberCoroutineScope()
+    var list by remember { mutableStateOf<List<Order>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+    var selected by remember { mutableStateOf<Order?>(null) }
+
+    LaunchedEffect(refresh) {
+        loading = true
+        Repository().orders().fold(
+            { list = it; error = null },
+            { error = it.message }
+        )
+        loading = false
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("অর্ডার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("অর্ডার, কাস্টমার, পেমেন্ট ও ডেলিভারি")
+            }
+            IconButton(onClick = { refresh++ }) {
+                Icon(Icons.Default.Refresh, "রিফ্রেশ")
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+        RefreshableList(refresh, { refresh++ }) {
+            if (loading && list.isEmpty()) {
+                item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            } else if (!loading && list.isEmpty()) {
+                item { EmptyState(if (error != null) "অর্ডারের ডাটা লোড হয়নি" else "এখনও কোনো অর্ডার আসেনি") }
+            }
+
+            items(list, key = { it.id }) { o ->
+                Card(
+                    Modifier.fillMaxWidth().clickable { selected = o },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    )
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("#${o.orderNumber}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                                Text(o.customer, fontWeight = FontWeight.SemiBold)
+                                Text(o.phone, style = MaterialTheme.typography.bodySmall)
+                            }
+                            AssistChip(
+                                onClick = { selected = o },
+                                label = { Text(statusLabel(o.status)) }
+                            )
+                        }
+                        HorizontalDivider()
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("মোট", style = MaterialTheme.typography.labelMedium)
+                                Text("৳ ${money(o.total)}", fontWeight = FontWeight.Bold)
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Text("পেমেন্ট", style = MaterialTheme.typography.labelMedium)
+                                Text(paymentLabel(o.paymentMethod), fontWeight = FontWeight.SemiBold)
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("পেমেন্ট স্ট্যাটাস", style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    statusLabel(o.paymentStatus),
+                                    color = if (o.paymentStatus == "paid")
+                                        MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    selected?.let { o ->
+        OrderDetailsDialog(
+            o,
+            onDismiss = { selected = null }
+        ) { status: String, pay: String ->
+            scope.launch {
+                Repository().updateOrderStatus(o.id, status)
+                Repository().updatePaymentStatus(o.id, pay)
+                Repository().orders().fold(
+                    { list = it; selected = null; error = null },
+                    { error = it.message }
+                )
+            }
+        }
+    }
+}
+
+
+
+private fun statusLabel(value: String): String = when (value) {
+    "pending" -> "Pending"
+    "confirmed" -> "Confirmed"
+    "processing" -> "Processing"
+    "packed" -> "Packed"
+    "shipped" -> "Shipped"
+    "out_for_delivery" -> "Out for delivery"
+    "delivered" -> "Delivered"
+    "cancelled" -> "Cancelled"
+    "returned" -> "Returned"
+    "paid" -> "Paid"
+    "failed" -> "Failed"
+    "refunded" -> "Refunded"
+    else -> value
+}
+
+private fun paymentLabel(value: String): String = when (value) {
+    "cod" -> "Cash on delivery"
+    "bkash" -> "bKash"
+    "nagad" -> "Nagad"
+    "rocket" -> "Rocket"
+    "bank" -> "Bank"
+    "shurjopay" -> "ShurjoPay"
+    "card" -> "Card"
+    else -> value
+}
+
 
 @Composable
 private fun OrderSection(title: String, content: @Composable ColumnScope.() -> Unit) {
