@@ -220,13 +220,231 @@ private fun ProductDialog(
     )
 }
 
-@Composable private fun Categories(){val scope=rememberCoroutineScope();var list by remember{mutableStateOf<List<Category>>(emptyList())};var refresh by remember{mutableStateOf(0)};var error by remember{mutableStateOf<String?>(null)};var add by remember{mutableStateOf(false)};var edit by remember{mutableStateOf<Category?>(null)};var del by remember{mutableStateOf<Category?>(null)};LaunchedEffect(refresh){Repository().categories().fold({list=it;error=null},{error=it.message})};Column(Modifier.fillMaxSize().padding(16.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text("ক্যাটাগরি",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));FilledTonalButton({add=true}){Icon(Icons.Default.Add,null);Text("নতুন")}};Spacer(Modifier.height(10.dp));error?.let{Text(it,color=MaterialTheme.colorScheme.error)};LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(list,key={it.id}){c->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){c.imageUrl?.let{AsyncImage(it,null,Modifier.size(48.dp))};Column(Modifier.weight(1f)){Text(c.name,fontWeight=FontWeight.SemiBold);Text(if(c.active)"Active" else "Off")};IconButton({edit=c}){Icon(Icons.Default.Edit,null)};IconButton({del=c}){Icon(Icons.Default.Delete,null)}}}}}};if(add)CategoryDialog(null,{add=false},{n,d,img,o->scope.launch{Repository().addCategory(n,d,img,o).fold({add=false;refresh++},{error=it.message})}});edit?.let{c->CategoryDialog(c,{edit=null},{n,d,img,o->scope.launch{Repository().updateCategory(c.copy(name=n,description=d,imageUrl=img,sortOrder=o)).fold({edit=null;refresh++},{error=it.message})}})};del?.let{c->Confirm("ক্যাটাগরি ডিলিট?","${c.name} মুছে যাবে.",{scope.launch{Repository().deleteCategory(c.id).fold({del=null;refresh++},{error=it.message;del=null})}},{del=null})}}
+@Composable
+private fun Categories() {
+    val scope = rememberCoroutineScope()
+    var list by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var refresh by remember { mutableStateOf(0) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var add by remember { mutableStateOf(false) }
+    var edit by remember { mutableStateOf<Category?>(null) }
+    var del by remember { mutableStateOf<Category?>(null) }
 
-@Composable private fun Orders(){val scope=rememberCoroutineScope();var list by remember{mutableStateOf<List<Order>>(emptyList())};var error by remember{mutableStateOf<String?>(null)};var refresh by remember{mutableStateOf(0)};var selected by remember{mutableStateOf<Order?>(null)};LaunchedEffect(refresh){Repository().orders().fold({list=it;error=null},{error=it.message})};Column(Modifier.fillMaxSize().padding(16.dp)){Text("অর্ডার",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Status + payment status + customer/address");Spacer(Modifier.height(10.dp));error?.let{Text(it,color=MaterialTheme.colorScheme.error)};LazyColumn(verticalArrangement=Arrangement.spacedBy(9.dp)){items(list,key={it.id}){o->Card(Modifier.fillMaxWidth().clickable{selected=o}){Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("#${o.orderNumber}",fontWeight=FontWeight.Bold);Text("${o.customer} • ${o.phone}");Text("৳ ${money(o.total)} • ${o.paymentStatus}")};AssistChip({selected=o},label={Text(o.status)})}}}}}};selected?.let{o->OrderDialog(o,{selected=null},{status,pay->scope.launch{Repository().updateOrderStatus(o.id,status);Repository().updatePaymentStatus(o.id,pay);Repository().orders().fold({list=it;selected=null},{error=it.message})}})}}
+    LaunchedEffect(refresh) {
+        Repository().categories().fold(
+            { list = it; error = null },
+            { error = it.message }
+        )
+    }
 
-@Composable private fun Customers(){val scope=rememberCoroutineScope();var list by remember{mutableStateOf<List<Customer>>(emptyList())};var error by remember{mutableStateOf<String?>(null)};var selected by remember{mutableStateOf<Customer?>(null)};var refresh by remember{mutableStateOf(0)};LaunchedEffect(refresh){Repository().customers().fold({list=it},{error=it.message})};Column(Modifier.fillMaxSize().padding(16.dp)){Text("কাস্টমার",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("Profile + role management");Spacer(Modifier.height(10.dp));error?.let{Text(it,color=MaterialTheme.colorScheme.error)};LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(list,key={it.id}){c->Card(Modifier.fillMaxWidth().clickable{selected=c}){Column(Modifier.padding(12.dp)){Text(c.name,fontWeight=FontWeight.SemiBold);Text(c.email?:"—");Text(c.phone?:"—");AssistChip({selected=c},label={Text(c.role)})}}}}}};selected?.let{c->RoleDialog(c,{selected=null},{role->scope.launch{Repository().updateCustomerRole(c.id,role).fold({selected=null;refresh++},{error=it.message;selected=null})}})}}
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("ক্যাটাগরি", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            FilledTonalButton(onClick = { add = true }) {
+                Icon(Icons.Default.Add, null)
+                Text("নতুন")
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(list, key = { it.id }) { c ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        c.imageUrl?.let { AsyncImage(it, null, Modifier.size(48.dp)) }
+                        Column(Modifier.weight(1f)) {
+                            Text(c.name, fontWeight = FontWeight.SemiBold)
+                            Text(if (c.active) "Active" else "Off")
+                        }
+                        IconButton(onClick = { edit = c }) { Icon(Icons.Default.Edit, null) }
+                        IconButton(onClick = { del = c }) { Icon(Icons.Default.Delete, null) }
+                    }
+                }
+            }
+        }
+    }
 
-@Composable private fun Complaints(){val scope=rememberCoroutineScope();var list by remember{mutableStateOf<List<Complaint>>(emptyList())};var error by remember{mutableStateOf<String?>(null)};var selected by remember{mutableStateOf<Complaint?>(null)};var refresh by remember{mutableStateOf(0)};LaunchedEffect(refresh){Repository().complaints().fold({list=it},{error=it.message})};Column(Modifier.fillMaxSize().padding(16.dp)){Text("অভিযোগ",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Spacer(Modifier.height(10.dp));error?.let{Text(it,color=MaterialTheme.colorScheme.error)};LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){items(list,key={it.id}){c->Card(Modifier.fillMaxWidth().clickable{selected=c}){Column(Modifier.padding(12.dp)){Text("#${c.number}",fontWeight=FontWeight.Bold);Text(c.subject?:"অভিযোগ");Text("${c.customerName} • ${c.phone}");Text(c.description,maxLines=2);AssistChip({selected=c},label={Text(c.status)})}}}}}};selected?.let{c->ComplaintDialog(c,{selected=null},{status,note->scope.launch{Repository().updateComplaint(c.id,status,note).fold({selected=null;refresh++},{error=it.message;selected=null})}})}}
+    if (add) {
+        CategoryDialog(null, { add = false }) { n, d, img, o ->
+            scope.launch {
+                Repository().addCategory(n, d, img, o).fold(
+                    { add = false; refresh++ },
+                    { error = it.message }
+                )
+            }
+        }
+    }
+    edit?.let { c ->
+        CategoryDialog(c, { edit = null }) { n, d, img, o ->
+            scope.launch {
+                Repository().updateCategory(c.copy(name = n, description = d, imageUrl = img, sortOrder = o)).fold(
+                    { edit = null; refresh++ },
+                    { error = it.message }
+                )
+            }
+        }
+    }
+    del?.let { c ->
+        Confirm(
+            "ক্যাটাগরি ডিলিট?",
+            "${c.name} মুছে যাবে.",
+            {
+                scope.launch {
+                    Repository().deleteCategory(c.id).fold(
+                        { del = null; refresh++ },
+                        { error = it.message; del = null }
+                    )
+                }
+            },
+            { del = null }
+        )
+    }
+}
+
+@Composable
+private fun Orders() {
+    val scope = rememberCoroutineScope()
+    var list by remember { mutableStateOf<List<Order>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+    var selected by remember { mutableStateOf<Order?>(null) }
+
+    LaunchedEffect(refresh) {
+        Repository().orders().fold(
+            { list = it; error = null },
+            { error = it.message }
+        )
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("অর্ডার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Status + payment status + customer/address")
+        Spacer(Modifier.height(10.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            items(list, key = { it.id }) { o ->
+                Card(Modifier.fillMaxWidth().clickable { selected = o }) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("#${o.orderNumber}", fontWeight = FontWeight.Bold)
+                            Text("${o.customer} • ${o.phone}")
+                            Text("৳ ${money(o.total)} • ${o.paymentStatus}")
+                        }
+                        AssistChip(onClick = { selected = o }, label = { Text(o.status) })
+                    }
+                }
+            }
+        }
+    }
+
+    selected?.let { o ->
+        OrderDialog(
+            o,
+            { selected = null }
+        ) { status, pay ->
+            scope.launch {
+                Repository().updateOrderStatus(o.id, status)
+                Repository().updatePaymentStatus(o.id, pay)
+                Repository().orders().fold(
+                    { list = it; selected = null },
+                    { error = it.message }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Customers() {
+    val scope = rememberCoroutineScope()
+    var list by remember { mutableStateOf<List<Customer>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf<Customer?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refresh) {
+        Repository().customers().fold(
+            { list = it; error = null },
+            { error = it.message }
+        )
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("কাস্টমার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Profile + role management")
+        Spacer(Modifier.height(10.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(list, key = { it.id }) { c ->
+                Card(Modifier.fillMaxWidth().clickable { selected = c }) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(c.name, fontWeight = FontWeight.SemiBold)
+                        Text(c.email ?: "—")
+                        Text(c.phone ?: "—")
+                        AssistChip(onClick = { selected = c }, label = { Text(c.role) })
+                    }
+                }
+            }
+        }
+    }
+
+    selected?.let { c ->
+        RoleDialog(c, { selected = null }) { role ->
+            scope.launch {
+                Repository().updateCustomerRole(c.id, role).fold(
+                    { selected = null; refresh++ },
+                    { error = it.message; selected = null }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun Complaints() {
+    val scope = rememberCoroutineScope()
+    var list by remember { mutableStateOf<List<Complaint>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf<Complaint?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refresh) {
+        Repository().complaints().fold(
+            { list = it; error = null },
+            { error = it.message }
+        )
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Text("অভিযোগ", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(10.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(list, key = { it.id }) { c ->
+                Card(Modifier.fillMaxWidth().clickable { selected = c }) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("#${c.number}", fontWeight = FontWeight.Bold)
+                        Text(c.subject ?: "অভিযোগ")
+                        Text("${c.customerName} • ${c.phone}")
+                        Text(c.description, maxLines = 2)
+                        AssistChip(onClick = { selected = c }, label = { Text(c.status) })
+                    }
+                }
+            }
+        }
+    }
+
+    selected?.let { c ->
+        ComplaintDialog(c, { selected = null }) { status, note ->
+            scope.launch {
+                Repository().updateComplaint(c.id, status, note).fold(
+                    { selected = null; refresh++ },
+                    { error = it.message; selected = null }
+                )
+            }
+        }
+    }
+}
 
 @Composable private fun Wishlist(){
     var list by remember{mutableStateOf<List<WishlistSummary>>(emptyList())}; var error by remember{mutableStateOf<String?>(null)}; var refresh by remember{mutableStateOf(0)}
