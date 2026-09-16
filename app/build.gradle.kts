@@ -15,7 +15,14 @@ fun prop(n: String) = localProperties.getProperty(n, "")
 android {
     namespace="com.folbazar.admin"
     compileSdk=35
-    defaultConfig { applicationId="com.folbazar.admin"; minSdk=26; targetSdk=35; versionCode=1; versionName="1.0.0" }
+    defaultConfig {
+        applicationId="com.folbazar.admin"
+        minSdk=26
+        targetSdk=35
+        val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode=runNumber
+        versionName="1.0.$runNumber"
+    }
     buildFeatures { compose=true; buildConfig=true }
     buildTypes {
         debug { buildConfigField("String","SUPABASE_URL","\"${prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${prop("CLOUDINARY_UPLOAD_PRESET")}\"") }

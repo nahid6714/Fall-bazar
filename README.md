@@ -1,33 +1,57 @@
 # ফল বাজার Admin
 
-Production-oriented Android Admin starter for the ফল বাজার website.
+Android Admin App for the ফল বাজার e-commerce project.
 
-Included now: Jetpack Compose UI, email/password login (Supabase Auth), dashboard, full product CRUD (add/edit/delete + Cloudinary image upload), order status management, customer list, and automatic GitHub Release APK workflow.
+## Included
 
-## Required Supabase setup
+- Jetpack Compose Admin UI
+- Supabase Auth email/password login
+- Dashboard
+- Products / stock module
+- Orders module
+- Customer module
+- Coupons / Wishlist / Settings module structure
+- Supabase REST client with the logged-in user's access token (RLS applies)
+- Cloudinary configuration hooks
+- Automatic GitHub Release APK workflow
 
-1. **Auth user** — Create at least one admin user under Authentication → Users (email + password). The app logs in with this and uses the user's own access token for all API calls, so Row Level Security policies are enforced correctly.
-2. **Row Level Security** — Make sure your `products`, `orders`, and `customers` tables have RLS policies that allow the `authenticated` role to select/insert/update/delete (or scope it to an `is_admin` claim/table, however you manage admin access).
-3. **Expected columns** (rename in `Repository.kt` if yours differ):
-   - `products`: id, title, price, old_price, stock, image_url, category, is_active, created_at
-   - `orders`: id, customer_name, total, status, created_at
-   - `customers`: id, name, phone, address, created_at
-4. **Cloudinary** — create an **unsigned** upload preset (Settings → Upload → Upload presets) so the app can upload product photos without embedding your API secret.
+## Automatic Release APK
 
-Fill real values into `local.properties` (copy from `local.properties.example`) for local builds, and into the repo's Actions secrets for release builds.
+Every successful push to `main` automatically:
 
-## GitHub Release
+1. Builds the release APK.
+2. Verifies that the APK exists.
+3. Uploads the APK as a GitHub Actions artifact.
+4. Creates a new GitHub Release.
+5. Attaches the APK to that Release.
+6. Marks the newest release as the latest release.
 
-Push a version tag:
+Example generated tag:
 
-`git tag v1.0.0 && git push origin v1.0.0`
+```text
+v1.0.27
+```
 
-GitHub Actions builds the release APK and attaches it to a GitHub Release.
+No manual `git tag` command is required for normal releases.
 
-Repository Actions secrets:
-- SUPABASE_URL
-- SUPABASE_PUBLISHABLE_KEY
-- CLOUDINARY_CLOUD_NAME
-- CLOUDINARY_UPLOAD_PRESET
+You can also start the same workflow manually from **GitHub → Actions → Android Release APK → Run workflow**.
 
-Never put a Supabase service-role/secret key in the Android app.
+## GitHub Actions secrets
+
+Add these under **Repository → Settings → Secrets and variables → Actions → New repository secret**:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_UPLOAD_PRESET`
+
+The Supabase service-role/secret key must never be placed inside the Android app.
+
+## Local setup
+
+1. Open the project in Android Studio.
+2. Copy `local.properties.example` to `local.properties`.
+3. Fill in the local Supabase and Cloudinary values.
+4. Sync Gradle and run the app.
+
+`local.properties` and keystores are ignored by Git.
