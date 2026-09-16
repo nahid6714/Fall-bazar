@@ -42,47 +42,36 @@ data class DownloadState(
 
 object UpdateManager {
     private const val REPO = "nahid6714/Fall-bazar"
-    private const val LATEST_URL = "https://api.github.com/repos/$REPO/releases/latest"
+    private const val UPDATE_JSON_URL =
+        "https://github.com/$REPO/releases/latest/download/update.json"
 
     suspend fun checkForUpdate(): UpdateResult = withContext(Dispatchers.IO) {
         try {
-            val conn = (URL(LATEST_URL).openConnection() as HttpURLConnection).apply {
+            val conn = (URL(UPDATE_JSON_URL).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 connectTimeout = 15_000
                 readTimeout = 20_000
-                setRequestProperty("Accept", "application/vnd.github+json")
+                instanceFollowRedirects = true
+                setRequestProperty("Accept", "application/json")
                 setRequestProperty("User-Agent", "FolBazar-Admin/${BuildConfig.VERSION_NAME}")
             }
 
             try {
                 if (conn.responseCode !in 200..299) {
-                    return@withContext UpdateResult.Error("GitHub update check failed: HTTP ${conn.responseCode}")
+                    return@withContext UpdateResult.Error("GitHub update JSON check failed: HTTP ${conn.responseCode}")
                 }
 
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 val root = Json.parseToJsonElement(body).jsonObject
-                val tag = root["tag_name"]?.jsonPrimitive?.content.orEmpty()
-                val releaseName = root["name"]?.jsonPrimitive?.content ?: tag
-                val releaseUrl = root["html_url"]?.jsonPrimitive?.content.orEmpty()
-                val assets = root["assets"]?.jsonArray ?: return@withContext UpdateResult.Error("Release-এ APK পাওয়া যায়নি")
+                val versionCode = root["versionCode"]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
+                val versionName = root["versionName"]?.jsonPrimitive?.content.orEmpty()
+                val releaseName = root["releaseName"]?.jsonPrimitive?.content
+                    ?: "Fol Bazar Admin $versionName"
+                val downloadUrl = root["downloadUrl"]?.jsonPrimitive?.content.orEmpty()
+                val releaseUrl = root["releaseUrl"]?.jsonPrimitive?.content.orEmpty()
 
-                val apk = assets.firstOrNull {
-                    val name = it.jsonObject["name"]?.jsonPrimitive?.content.orEmpty()
-                    name.endsWith(".apk", ignoreCase = true) &&
-                        name.startsWith("FolBazar-Admin-", ignoreCase = true)
-                }?.jsonObject ?: return@withContext UpdateResult.Error("Latest release-এ Fol Bazar APK পাওয়া যায়নি")
-
-                val assetName = apk["name"]?.jsonPrimitive?.content.orEmpty()
-                val downloadUrl = apk["browser_download_url"]?.jsonPrimitive?.content.orEmpty()
-                val versionCode = Regex("""FolBazar-Admin-(\d+)\.apk""", RegexOption.IGNORE_CASE)
-                    .find(assetName)?.groupValues?.getOrNull(1)?.toIntOrNull()
-                    ?: Regex("""(\d+)""").find(tag)?.value?.toIntOrNull()
-                    ?: 0
-                val versionName = Regex("""v?(\d+\.\d+(?:\.\d+)?)""").find(tag)?.groupValues?.getOrNull(1)
-                    ?: tag.removePrefix("v")
-
-                if (downloadUrl.isBlank() || versionCode <= 0) {
-                    return@withContext UpdateResult.Error("Latest release-এর version/APK তথ্য সঠিক নয়")
+                if (versionCode <= 0 || downloadUrl.isBlank()) {
+                    return@withContext UpdateResult.Error("GitHub update JSON-এ version/APK তথ্য সঠিক নয়")
                 }
 
                 if (versionCode > BuildConfig.VERSION_CODE) {

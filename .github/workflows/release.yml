@@ -204,4 +204,18 @@ jobs:
               --latest
           fi
 
-          echo "GitHub Release published successfully."
+          # Publish a small update manifest as a GitHub Release asset.
+          # The Android app reads this JSON instead of calling the GitHub API,
+          # avoiding API-rate-limit issues during normal update checks.
+          cat > update.json <<EOF
+          {
+            "versionCode": ${GITHUB_RUN_NUMBER},
+            "versionName": "1.0.${GITHUB_RUN_NUMBER}",
+            "releaseName": "${RELEASE_TITLE}",
+            "downloadUrl": "https://github.com/nahid6714/Fall-bazar/releases/download/${RELEASE_TAG}/FolBazar-Admin-${GITHUB_RUN_NUMBER}.apk",
+            "releaseUrl": "https://github.com/nahid6714/Fall-bazar/releases/tag/${RELEASE_TAG}"
+          }
+          EOF
+
+          gh release upload "${RELEASE_TAG}" update.json --clobber
+          echo "GitHub Release published successfully, including update.json."

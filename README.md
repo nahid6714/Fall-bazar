@@ -54,10 +54,12 @@ For Supabase schema changes, prefer migration files / version-controlled SQL rat
 
 
 ## In-app automatic update
-The Admin app checks the latest GitHub Release for `nahid6714/Fall-bazar`.
-From **সেটিংস / App Update** an admin can check manually, see a newer version,
-download the APK with progress, and launch Android's installer. Android may
-require the app's **Install unknown apps** permission the first time.
+The Admin app checks a small `update.json` manifest published with the latest
+GitHub Release for `nahid6714/Fall-bazar`. This avoids using the GitHub Releases
+API for normal update checks. From **সেটিংস / App Update** an admin can check
+manually, see a newer version, download the APK with progress, and launch
+Android's installer. Android may require the app's **Install unknown apps**
+permission the first time.
 
 The automatic GitHub Actions build remains `.github/workflows/release.yml`.
 The older `release-apk.yml` is manual-only to prevent duplicate builds.
