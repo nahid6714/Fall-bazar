@@ -11,8 +11,18 @@ import java.io.IOException
 class SupabaseClient {
     private val client = OkHttpClient()
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
-    private val restBase get() = BuildConfig.SUPABASE_URL.trimEnd('/') + "/rest/v1"
-    private val authBase get() = BuildConfig.SUPABASE_URL.trimEnd('/') + "/auth/v1"
+    private val supabaseUrl: String
+        get() {
+            val raw = BuildConfig.SUPABASE_URL.trim()
+            return when {
+                raw.startsWith("https://") || raw.startsWith("http://") -> raw.trimEnd('/')
+                raw.isBlank() -> "https://jqaswzjeyuyhtwcjnusr.supabase.co"
+                else -> "https://$raw".trimEnd('/')
+            }
+        }
+
+    private val restBase get() = "$supabaseUrl/rest/v1"
+    private val authBase get() = "$supabaseUrl/auth/v1"
     private val anonKey = BuildConfig.SUPABASE_PUBLISHABLE_KEY
 
     // Once a user logs in we call the API as them (so RLS policies apply); otherwise fall back to the anon key.

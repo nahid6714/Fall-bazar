@@ -105,3 +105,11 @@ as an application-code failure.
 The CI workflow explicitly runs `zipalign` and `apksigner sign` after Gradle builds
 the APK, then verifies the final APK with `apksigner verify`. This avoids publishing
 an unsigned/invalid APK and removes the previous META-INF verification failure.
+
+
+## Auth URL fix v9
+
+The release build now has safe Supabase defaults so a downloaded APK does not build
+an invalid URL such as `/auth/v1/...` when GitHub Actions Secrets are missing.
+CI secrets still override the defaults when provided. Supabase Auth uses the project's
+real HTTPS URL for email/password sign-in.

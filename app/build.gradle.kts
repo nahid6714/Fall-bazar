@@ -10,7 +10,17 @@ val localProperties = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
-fun prop(n: String) = localProperties.getProperty(n, "")
+fun prop(n: String): String = when (n) {
+    "SUPABASE_URL" -> localProperties.getProperty(n)
+        ?: "https://jqaswzjeyuyhtwcjnusr.supabase.co"
+    "SUPABASE_PUBLISHABLE_KEY" -> localProperties.getProperty(n)
+        ?: "sb_publishable_9Bhmik1eaSgOmed0hAYRkQ_a3yFIWuW"
+    "CLOUDINARY_CLOUD_NAME" -> localProperties.getProperty(n)
+        ?: "bak9nabq"
+    "CLOUDINARY_UPLOAD_PRESET" -> localProperties.getProperty(n)
+        ?: "fol_bazar_products"
+    else -> localProperties.getProperty(n, "")
+}
 
 android {
     namespace="com.folbazar.admin"
@@ -26,7 +36,7 @@ android {
     buildFeatures { compose=true; buildConfig=true }
     buildTypes {
         debug { buildConfigField("String","SUPABASE_URL","\"${prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
-        release { isMinifyEnabled=false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),"proguard-rules.pro"); buildConfigField("String","SUPABASE_URL","\"${System.getenv("SUPABASE_URL") ?: prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${System.getenv("CLOUDINARY_CLOUD_NAME") ?: prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${System.getenv("CLOUDINARY_UPLOAD_PRESET") ?: prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
+        release { isMinifyEnabled=false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),"proguard-rules.pro"); buildConfigField("String","SUPABASE_URL","\"${System.getenv("SUPABASE_URL")?.takeIf { it.isNotBlank() } ?: prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${System.getenv("SUPABASE_PUBLISHABLE_KEY")?.takeIf { it.isNotBlank() } ?: prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${System.getenv("CLOUDINARY_CLOUD_NAME")?.takeIf { it.isNotBlank() } ?: prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${System.getenv("CLOUDINARY_UPLOAD_PRESET")?.takeIf { it.isNotBlank() } ?: prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
     }
     compileOptions { sourceCompatibility=JavaVersion.VERSION_17; targetCompatibility=JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget="17" }
