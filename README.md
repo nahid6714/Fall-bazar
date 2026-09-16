@@ -73,3 +73,19 @@ The older `release-apk.yml` is manual-only to prevent duplicate builds.
 
 ## APK updater safety
 The Admin app checks `update.json` from the latest GitHub Release instead of the GitHub Releases API. Before opening Android's installer, the downloaded APK is checked for a valid APK container, the expected package name/version, and a matching signing certificate with the installed app. Every updateable release must use the same `KEYSTORE_BASE64`, `KEYSTORE_STORE_PASSWORD`, `KEYSTORE_KEY_PASSWORD`, and `KEYSTORE_KEY_ALIAS` GitHub Secrets.
+
+
+### Current Fol Bazar Cloudinary configuration
+- Cloud name: `bak9nabq`
+- Unsigned upload preset: `bak9nabq`
+- Asset folder: `fol_bazar_products` (configured in Cloudinary preset; the app does not use this as the preset name)
+
+### Supabase schema alignment
+The admin app is aligned with the current public schema: products use `name`, `stock_quantity`, `category_id`, `image_url`, `is_active`; categories use `is_active`; variants use `weight_grams`, `stock_quantity`, `is_active`; coupons use `title`, `min_order`, and `discount_type` values `percent`/`fixed`; orders expose payment sender number, TrxID, coupon, shipping and notes.
+
+
+## v28 Variant Management
+- Added Admin UI for product sizes/variants (e.g. 500g, 1kg, 2kg).
+- Admin can add, edit, delete, activate/deactivate variants.
+- Variant fields: label, weight_grams, price, old_price, stock_quantity, sort_order.
+- Uses the existing `product_variants` Supabase table; no schema change required.

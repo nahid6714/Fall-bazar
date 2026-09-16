@@ -139,16 +139,105 @@ fun FolBazarAdminApp() {
 @Composable private fun AdminAction(title:String,desc:String,icon:ImageVector,onClick:()->Unit){Card(Modifier.fillMaxWidth().clickable(onClick=onClick)){Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically){Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(14.dp));Column(Modifier.weight(1f)){Text(title,fontWeight=FontWeight.Bold);Text(desc,style=MaterialTheme.typography.bodySmall)};Icon(Icons.Default.ChevronRight,null)}}}
 
 @Composable private fun Products(){
-    val scope=rememberCoroutineScope(); var products by remember{mutableStateOf<List<Product>>(emptyList())}; var cats by remember{mutableStateOf<List<Category>>(emptyList())}; var loading by remember{mutableStateOf(true)}; var error by remember{mutableStateOf<String?>(null)}; var refresh by remember{mutableStateOf(0)}; var edit by remember{mutableStateOf<Product?>(null)}; var add by remember{mutableStateOf(false)}; var del by remember{mutableStateOf<Product?>(null)}
+    val scope=rememberCoroutineScope(); var products by remember{mutableStateOf<List<Product>>(emptyList())}; var cats by remember{mutableStateOf<List<Category>>(emptyList())}; var loading by remember{mutableStateOf(true)}; var error by remember{mutableStateOf<String?>(null)}; var refresh by remember{mutableStateOf(0)}; var edit by remember{mutableStateOf<Product?>(null)}; var add by remember{mutableStateOf(false)}; var del by remember{mutableStateOf<Product?>(null)}; var variantProduct by remember{mutableStateOf<Product?>(null)}
     fun reload(){refresh++}
     LaunchedEffect(refresh){loading=true;val r=Repository();val p=r.products();val c=r.categories();products=p.getOrNull().orEmpty();cats=c.getOrNull().orEmpty();error=p.exceptionOrNull()?.message?:c.exceptionOrNull()?.message;loading=false}
-    Column(Modifier.fillMaxSize().padding(16.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("পণ্য",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("CRUD + stock + category + flags + Cloudinary")};FilledTonalButton({add=true}){Icon(Icons.Default.Add,null);Spacer(Modifier.width(4.dp));Text("নতুন")}};Spacer(Modifier.height(12.dp));when{loading->LinearProgressIndicator(Modifier.fillMaxWidth());error!=null->Text("ডাটা লোড হয়নি: $error",color=MaterialTheme.colorScheme.error);products.isEmpty()->Text("কোনো পণ্য নেই");else->RefreshableList(refresh,{refresh++}){items(products,key={it.id}){p->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){p.imageUrl?.let{AsyncImage(it,null,Modifier.size(56.dp))};Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.SemiBold);Text("৳ ${money(p.price)} • স্টক ${p.stock}");Text(p.categoryName?:"ক্যাটাগরি নেই",style=MaterialTheme.typography.bodySmall);Text(if(p.active)"Active" else "Off",color=if(p.active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)};IconButton({edit=p}){Icon(Icons.Default.Edit,"এডিট")};IconButton({del=p}){Icon(Icons.Default.Delete,"ডিলিট")}}}}}}
+    Column(Modifier.fillMaxSize().padding(16.dp)){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Column(Modifier.weight(1f)){Text("পণ্য",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("CRUD + stock + category + flags + Cloudinary")};FilledTonalButton({add=true}){Icon(Icons.Default.Add,null);Spacer(Modifier.width(4.dp));Text("নতুন")}};Spacer(Modifier.height(12.dp));when{loading->LinearProgressIndicator(Modifier.fillMaxWidth());error!=null->Text("ডাটা লোড হয়নি: $error",color=MaterialTheme.colorScheme.error);products.isEmpty()->Text("কোনো পণ্য নেই");else->RefreshableList(refresh,{refresh++}){items(products,key={it.id}){p->Card(Modifier.fillMaxWidth()){Row(Modifier.padding(10.dp),verticalAlignment=Alignment.CenterVertically){p.imageUrl?.let{AsyncImage(it,null,Modifier.size(56.dp))};Spacer(Modifier.width(10.dp));Column(Modifier.weight(1f)){Text(p.name,fontWeight=FontWeight.SemiBold);Text("৳ ${money(p.price)} • স্টক ${p.stock}");Text(p.categoryName?:"ক্যাটাগরি নেই",style=MaterialTheme.typography.bodySmall);Text(if(p.active)"Active" else "Off",color=if(p.active)MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)};
+                        OutlinedButton(onClick={variantProduct=p}) { Icon(Icons.Default.Scale,null); Spacer(Modifier.width(3.dp)); Text("সাইজ") };
+                        IconButton({edit=p}){Icon(Icons.Default.Edit,"এডিট")};IconButton({del=p}){Icon(Icons.Default.Delete,"ডিলিট")}}}}}}
     }
     if(add)ProductDialog(null,cats,{add=false},{n,d,pr,op,st,ci,img,f,fl,h->scope.launch{Repository().addProduct(n,d,pr,op,st,ci,img,f,fl,h).fold({add=false;reload()},{error=it.message})}})
     edit?.let{p->ProductDialog(p,cats,{edit=null},{n,d,pr,op,st,ci,img,f,fl,h->scope.launch{Repository().updateProduct(p.copy(name=n,description=d,price=pr,oldPrice=op,stock=st,categoryId=ci,imageUrl=img,featured=f,flashSale=fl,hotDeal=h)).fold({edit=null;reload()},{error=it.message})}})}
     del?.let{p->Confirm("পণ্য ডিলিট করবেন?","${p.name} স্থায়ীভাবে মুছে যাবে.",{scope.launch{Repository().deleteProduct(p.id).fold({del=null;reload()},{error=it.message;del=null})}},{del=null})}
+    variantProduct?.let { product -> VariantManagerDialog(product, onDismiss={variantProduct=null}) }
 }
 
+@Composable
+private fun VariantManagerDialog(product: Product, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var variants by remember { mutableStateOf<List<ProductVariant>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+    var add by remember { mutableStateOf(false) }
+    var edit by remember { mutableStateOf<ProductVariant?>(null) }
+    var del by remember { mutableStateOf<ProductVariant?>(null) }
+
+    LaunchedEffect(product.id, refresh) {
+        loading = true
+        Repository().variants(product.id).fold(
+            { variants = it; error = null },
+            { error = it.message }
+        )
+        loading = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("সাইজ / ভ্যারিয়েন্ট — ${product.name}") },
+        text = {
+            Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Text("ওয়েবসাইটে যে ৫০০ গ্রাম, ১ কেজি ইত্যাদি দেখাবে—এখান থেকেই যোগ/এডিট/ডিলিট করুন.", style=MaterialTheme.typography.bodySmall)
+                FilledTonalButton(onClick={add=true}, modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.Add,null); Spacer(Modifier.width(5.dp)); Text("নতুন সাইজ / ভ্যারিয়েন্ট") }
+                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                error?.let { Text("ডাটা লোড হয়নি: $it", color=MaterialTheme.colorScheme.error) }
+                if (!loading && variants.isEmpty()) Text("এখনও কোনো সাইজ/ভ্যারিয়েন্ট যোগ করা হয়নি.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                variants.forEach { v ->
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(10.dp), verticalAlignment=Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(v.label, fontWeight=FontWeight.SemiBold)
+                                Text("${v.weightGrams}g • ৳ ${money(v.price)} • স্টক ${v.stock}")
+                                Text(if(v.active) "Active" else "Off", style=MaterialTheme.typography.bodySmall, color=if(v.active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            }
+                            IconButton(onClick={edit=v}) { Icon(Icons.Default.Edit,"এডিট") }
+                            IconButton(onClick={del=v}) { Icon(Icons.Default.Delete,"ডিলিট") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton={ TextButton(onClick=onDismiss) { Text("বন্ধ") } }
+    )
+
+    if (add) VariantEditorDialog(null, onDismiss={add=false}, onSave={label,grams,price,oldPrice,stock,active,sortOrder ->
+        scope.launch { Repository().addVariant(product.id,label,grams,price,oldPrice,stock,sortOrder).fold({add=false;refresh++},{error=it.message}) }
+    })
+    edit?.let { v -> VariantEditorDialog(v, onDismiss={edit=null}, onSave={label,grams,price,oldPrice,stock,active,sortOrder ->
+        scope.launch { Repository().updateVariant(v.copy(label=label,weightGrams=grams,price=price,oldPrice=oldPrice,stock=stock,active=active,sortOrder=sortOrder)).fold({edit=null;refresh++},{error=it.message}) }
+    }) }
+    del?.let { v -> Confirm("ভ্যারিয়েন্ট ডিলিট করবেন?", "${v.label} (${v.weightGrams}g) স্থায়ীভাবে মুছে যাবে.", {
+        scope.launch { Repository().deleteVariant(v.id).fold({del=null;refresh++},{error=it.message;del=null}) }
+    }, { del=null }) }
+}
+
+@Composable
+private fun VariantEditorDialog(initial: ProductVariant?, onDismiss: () -> Unit, onSave: (String,Int,Double,Double?,Int,Boolean,Int)->Unit) {
+    var label by remember { mutableStateOf(initial?.label ?: "") }
+    var grams by remember { mutableStateOf(initial?.weightGrams?.toString() ?: "") }
+    var price by remember { mutableStateOf(initial?.price?.toString() ?: "") }
+    var oldPrice by remember { mutableStateOf(initial?.oldPrice?.toString() ?: "") }
+    var stock by remember { mutableStateOf(initial?.stock?.toString() ?: "0") }
+    var sortOrder by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
+    var active by remember { mutableStateOf(initial?.active ?: true) }
+    val parsedPrice = price.toDoubleOrNull()
+    val parsedGrams = grams.toIntOrNull()
+    AlertDialog(
+        onDismissRequest=onDismiss,
+        title={Text(if(initial==null) "নতুন সাইজ / ভ্যারিয়েন্ট" else "সাইজ / ভ্যারিয়েন্ট এডিট")},
+        text={Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Field(label,{label=it},"লেবেল (যেমন ৫০০ গ্রাম / ১ কেজি)")
+            Field(grams,{grams=it},"ওজন (গ্রাম)",KeyboardType.Number)
+            Field(price,{price=it},"দাম (৳)",KeyboardType.Decimal)
+            Field(oldPrice,{oldPrice=it},"পুরনো দাম (৳)",KeyboardType.Decimal)
+            Field(stock,{stock=it},"স্টক",KeyboardType.Number)
+            Field(sortOrder,{sortOrder=it},"সাজানোর ক্রম",KeyboardType.Number)
+            SwitchRow("Active",active){active=it}
+        }},
+        confirmButton={TextButton(enabled=label.isNotBlank() && parsedGrams!=null && parsedGrams>0 && parsedPrice!=null && parsedPrice>=0,onClick={onSave(label.trim(),parsedGrams?:0,parsedPrice?:0.0,oldPrice.toDoubleOrNull(),stock.toIntOrNull()?:0,active,sortOrder.toIntOrNull()?:0)}){Text("সেভ")}},
+        dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}}
+    )
+}
 
 @Composable
 private fun RefreshableList(
@@ -581,11 +670,11 @@ private fun Complaints() {
 
 private data class CouponForm(val code:String,val title:String?,val type:String,val value:Double,val min:Double,val max:Double?,val limit:Int?,val start:String?,val end:String?)
 
-@Composable private fun CouponDialog(initial:Coupon?,onDismiss:()->Unit,onSave:(CouponForm)->Unit){var code by remember{mutableStateOf(initial?.code?:"")};var title by remember{mutableStateOf(initial?.title?:"")};var type by remember{mutableStateOf(initial?.discountType ?: "percentage")};var value by remember{mutableStateOf(initial?.discountValue?.toString()?:"")};var min by remember{mutableStateOf(initial?.minOrder?.toString()?: "0")};var max by remember{mutableStateOf(initial?.maxDiscount?.toString()?: "")};var limit by remember{mutableStateOf(initial?.usageLimit?.toString()?: "")};AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"নতুন কুপন" else "কুপন এডিট")},text={Column(Modifier.heightIn(max=450.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){Field(code,{code=it},"কুপন কোড");Field(title,{title=it},"শিরোনাম");Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(type=="percentage",{type="percentage"},label={Text("Percent")});FilterChip(type=="fixed",{type="fixed"},label={Text("Fixed")})};Field(value,{value=it},"Discount value",KeyboardType.Decimal);Field(min,{min=it},"Minimum order",KeyboardType.Decimal);Field(max,{max=it},"Maximum discount",KeyboardType.Decimal);Field(limit,{limit=it},"Usage limit",KeyboardType.Number)}},confirmButton={TextButton(enabled=code.isNotBlank()&&value.toDoubleOrNull()!=null,onClick={onSave(CouponForm(code.trim(),title.trim().ifBlank{null},type,value.toDoubleOrNull()?:0.0,min.toDoubleOrNull()?:0.0,max.toDoubleOrNull(),limit.toIntOrNull(),initial?.startsAt,initial?.expiresAt))}){Text("সেভ")}},dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}})}
+@Composable private fun CouponDialog(initial:Coupon?,onDismiss:()->Unit,onSave:(CouponForm)->Unit){var code by remember{mutableStateOf(initial?.code?:"")};var title by remember{mutableStateOf(initial?.title?:"")};var type by remember{mutableStateOf(initial?.discountType ?: "percent")};var value by remember{mutableStateOf(initial?.discountValue?.toString()?:"")};var min by remember{mutableStateOf(initial?.minOrder?.toString()?: "0")};var max by remember{mutableStateOf(initial?.maxDiscount?.toString()?: "")};var limit by remember{mutableStateOf(initial?.usageLimit?.toString()?: "")};AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"নতুন কুপন" else "কুপন এডিট")},text={Column(Modifier.heightIn(max=450.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){Field(code,{code=it},"কুপন কোড");Field(title,{title=it},"শিরোনাম");Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(type=="percent",{type="percent"},label={Text("Percent")});FilterChip(type=="fixed",{type="fixed"},label={Text("Fixed")})};Field(value,{value=it},"Discount value",KeyboardType.Decimal);Field(min,{min=it},"Minimum order",KeyboardType.Decimal);Field(max,{max=it},"Maximum discount",KeyboardType.Decimal);Field(limit,{limit=it},"Usage limit",KeyboardType.Number)}},confirmButton={TextButton(enabled=code.isNotBlank()&&value.toDoubleOrNull()!=null,onClick={onSave(CouponForm(code.trim(),title.trim().ifBlank{null},type,value.toDoubleOrNull()?:0.0,min.toDoubleOrNull()?:0.0,max.toDoubleOrNull(),limit.toIntOrNull(),initial?.startsAt,initial?.expiresAt))}){Text("সেভ")}},dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}})}
 
 @Composable private fun CategoryDialog(initial:Category?,onDismiss:()->Unit,onSave:(String,String?,String?,Int)->Unit){var n by remember{mutableStateOf(initial?.name?:"")};var d by remember{mutableStateOf(initial?.description?:"")};var img by remember{mutableStateOf(initial?.imageUrl?:"")};var o by remember{mutableStateOf(initial?.sortOrder?.toString()?: "0")};AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"নতুন ক্যাটাগরি" else "ক্যাটাগরি এডিট")},text={Column(verticalArrangement=Arrangement.spacedBy(8.dp)){Field(n,{n=it},"নাম");Field(d,{d=it},"বিবরণ");Field(img,{img=it},"Image URL");Field(o,{o=it},"Sort order",KeyboardType.Number)}},confirmButton={TextButton(enabled=n.isNotBlank(),onClick={onSave(n.trim(),d.trim().ifBlank{null},img.trim().ifBlank{null},o.toIntOrNull()?:0)}){Text("সেভ")}},dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}})}
 
-@Composable private fun OrderDialog(o:Order,onDismiss:()->Unit,onSave:(String,String)->Unit){var status by remember{mutableStateOf(o.status)};var pay by remember{mutableStateOf(o.paymentStatus)};AlertDialog(onDismissRequest=onDismiss,title={Text("অর্ডার #${o.orderNumber}")},text={Column(Modifier.heightIn(max=500.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(7.dp)){Text("কাস্টমার: ${o.customer}");Text("ফোন: ${o.phone}");Text("ইমেইল: ${o.email?:"—"}");Text("ঠিকানা: ${o.address}");Text("Subtotal: ৳ ${money(o.subtotal)}");Text("Delivery: ৳ ${money(o.deliveryCharge)}");Text("Discount: ৳ ${money(o.discount)}");Text("Total: ৳ ${money(o.total)}",fontWeight=FontWeight.Bold);Text("Payment: ${o.paymentMethod}");Text("Order status",fontWeight=FontWeight.SemiBold);SimpleChoice(status,ORDER_STATUSES){status=it};Text("Payment status",fontWeight=FontWeight.SemiBold);SimpleChoice(pay,PAYMENT_STATUSES){pay=it}}},confirmButton={TextButton(onClick={onSave(status,pay)}){Text("আপডেট")}},dismissButton={TextButton(onClick=onDismiss){Text("বন্ধ")}})}
+@Composable private fun OrderDialog(o:Order,onDismiss:()->Unit,onSave:(String,String)->Unit){var status by remember{mutableStateOf(o.status)};var pay by remember{mutableStateOf(o.paymentStatus)};AlertDialog(onDismissRequest=onDismiss,title={Text("অর্ডার #${o.orderNumber}")},text={Column(Modifier.heightIn(max=560.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(7.dp)){Text("কাস্টমার: ${o.customer}");Text("ফোন: ${o.phone}");Text("ইমেইল: ${o.email?:"—"}");Text("ঠিকানা: ${o.address}");if(!o.division.isNullOrBlank()||!o.district.isNullOrBlank()||!o.upazila.isNullOrBlank()) Text("এলাকা: ${listOfNotNull(o.division,o.district,o.upazila).joinToString(", ")}");if(!o.deliveryArea.isNullOrBlank()) Text("Delivery area: ${o.deliveryArea}");if(!o.shippingMethod.isNullOrBlank()) Text("Shipping: ${o.shippingMethod}");Text("Subtotal: ৳ ${money(o.subtotal)}");Text("Delivery: ৳ ${money(o.deliveryCharge)}");Text("Discount: ৳ ${money(o.discount)}");Text("Total: ৳ ${money(o.total)}",fontWeight=FontWeight.Bold);Text("Payment: ${o.paymentMethod}");if(!o.paymentTitle.isNullOrBlank()) Text("Payment title: ${o.paymentTitle}");if(!o.senderPhone.isNullOrBlank()) Text("Sender number: ${o.senderPhone}");if(!o.trxId.isNullOrBlank()) Text("TrxID: ${o.trxId}");if(!o.couponCode.isNullOrBlank()) Text("Coupon: ${o.couponCode}");if(!o.deliveryNote.isNullOrBlank()) Text("Delivery note: ${o.deliveryNote}");if(!o.orderNote.isNullOrBlank()) Text("Order note: ${o.orderNote}");Text("Order status",fontWeight=FontWeight.SemiBold);SimpleChoice(status,ORDER_STATUSES){status=it};Text("Payment status",fontWeight=FontWeight.SemiBold);SimpleChoice(pay,PAYMENT_STATUSES){pay=it}}},confirmButton={TextButton(onClick={onSave(status,pay)}){Text("আপডেট")}},dismissButton={TextButton(onClick=onDismiss){Text("বন্ধ")}})}
 
 @Composable private fun RoleDialog(c:Customer,onDismiss:()->Unit,onSave:(String)->Unit){var role by remember{mutableStateOf(c.role)};AlertDialog(onDismissRequest=onDismiss,title={Text("${c.name} — Role")},text={SimpleChoice(role,CUSTOMER_ROLES){role=it}},confirmButton={TextButton(onClick={onSave(role)}){Text("সেভ")}},dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}})}
 @Composable private fun ComplaintDialog(c:Complaint,onDismiss:()->Unit,onSave:(String,String?)->Unit){var status by remember{mutableStateOf(c.status)};var note by remember{mutableStateOf(c.adminNote?:"")};AlertDialog(onDismissRequest=onDismiss,title={Text("অভিযোগ #${c.number}")},text={Column(Modifier.heightIn(max=450.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){Text(c.description);SimpleChoice(status,COMPLAINT_STATUSES){status=it};Field(note,{note=it},"Admin note",single=false)}},confirmButton={TextButton(onClick={onSave(status,note.trim().ifBlank{null})}){Text("আপডেট")}},dismissButton={TextButton(onClick=onDismiss){Text("বন্ধ")}})}

@@ -6,6 +6,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /** Thin REST wrapper around Supabase (PostgREST + GoTrue auth). No SDK needed. */
 class SupabaseClient {
@@ -34,8 +37,44 @@ class SupabaseClient {
     private fun execute(request: Request): String {
         client.newCall(request).execute().use { resp ->
             val text = resp.body?.string() ?: ""
+            if (resp.code == 401 && Session.refreshToken != null && request.url.encodedPath != "/auth/v1/token") {
+                val refreshed = refreshSession()
+                if (refreshed) {
+                    val retry = request.newBuilder()
+                        .header("Authorization", "Bearer ${Session.accessToken}")
+                        .build()
+                    client.newCall(retry).execute().use { retryResp ->
+                        val retryText = retryResp.body?.string() ?: ""
+                        if (!retryResp.isSuccessful) throw IOException("Supabase ${retryResp.code}: $retryText")
+                        return retryText.ifBlank { "[]" }
+                    }
+                }
+            }
             if (!resp.isSuccessful) throw IOException("Supabase ${resp.code}: $text")
             return text.ifBlank { "[]" }
+        }
+    }
+
+    /** Refreshes an expired access token once, then REST calls retry automatically. */
+    private fun refreshSession(): Boolean {
+        val refresh = Session.refreshToken ?: return false
+        return try {
+            val body = "{\"refresh_token\":${jsonString(refresh)}}"
+            val request = Request.Builder().url("$authBase/token?grant_type=refresh_token")
+                .addHeader("apikey", anonKey)
+                .addHeader("Content-Type", "application/json")
+                .post(body.toRequestBody(jsonMedia)).build()
+            client.newCall(request).execute().use { resp ->
+                val text = resp.body?.string() ?: ""
+                if (!resp.isSuccessful) return false
+                val root = Json.parseToJsonElement(text).jsonObject
+                val token = root["access_token"]?.jsonPrimitive?.contentOrNull ?: return false
+                val newRefresh = root["refresh_token"]?.jsonPrimitive?.contentOrNull
+                Session.updateAccessToken(token, newRefresh)
+                true
+            }
+        } catch (_: Exception) {
+            false
         }
     }
 

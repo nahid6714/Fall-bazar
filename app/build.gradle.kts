@@ -19,7 +19,7 @@ fun prop(n: String): String = when (n) {
     "CLOUDINARY_CLOUD_NAME" -> localProperties.getProperty(n)
         ?: "bak9nabq"
     "CLOUDINARY_UPLOAD_PRESET" -> localProperties.getProperty(n)
-        ?: "fol_bazar_products"
+        ?: "bak9nabq"
     else -> localProperties.getProperty(n, "")
 }
 

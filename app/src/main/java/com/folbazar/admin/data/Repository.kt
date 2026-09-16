@@ -46,12 +46,15 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         id = s(o, "id") ?: "", orderNumber = s(o, "order_number") ?: s(o, "id")?.take(8).orEmpty(),
         userId = s(o, "user_id"), customer = s(o, "customer_name") ?: "Customer",
         phone = s(o, "customer_phone") ?: "", email = s(o, "customer_email"),
-        address = listOfNotNull(s(o, "address"), s(o, "upazila"), s(o, "district"), s(o, "division"))
-            .filter { it.isNotBlank() }.joinToString(", "),
+        division = s(o, "division"), district = s(o, "district"), upazila = s(o, "upazila"),
+        address = s(o, "address") ?: "", deliveryNote = s(o, "delivery_note"), orderNote = s(o, "order_note"),
         subtotal = d(o, "subtotal") ?: 0.0, deliveryCharge = d(o, "delivery_charge") ?: 0.0,
         discount = d(o, "discount_amount") ?: 0.0, total = d(o, "total_amount", "total") ?: 0.0,
-        paymentMethod = s(o, "payment_method") ?: "cod", paymentStatus = s(o, "payment_status") ?: "pending",
-        status = s(o, "status") ?: "pending", createdAt = s(o, "created_at")
+        paymentMethod = s(o, "payment_method") ?: "cod", paymentTitle = s(o, "payment_title"),
+        senderPhone = s(o, "sender_phone"), trxId = s(o, "trx_id"), couponCode = s(o, "coupon_code"),
+        shippingMethod = s(o, "shipping_method"), deliveryArea = s(o, "delivery_area"),
+        paymentStatus = s(o, "payment_status") ?: "pending", status = s(o, "status") ?: "pending",
+        createdAt = s(o, "created_at")
     )
 
     private fun parseCustomer(o: JsonObject) = Customer(
@@ -67,9 +70,9 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     )
 
     private fun parseCoupon(o: JsonObject) = Coupon(
-        id = s(o, "id") ?: "", code = s(o, "code") ?: "", title = s(o, "title", "description"),
-        discountType = (s(o, "discount_type") ?: "percentage").let { if (it == "percent") "percentage" else it }, discountValue = d(o, "discount_value") ?: 0.0,
-        minOrder = d(o, "min_order_amount", "min_order") ?: 0.0, maxDiscount = d(o, "max_discount"),
+        id = s(o, "id") ?: "", code = s(o, "code") ?: "", title = s(o, "title"),
+        discountType = s(o, "discount_type") ?: "percent", discountValue = d(o, "discount_value") ?: 0.0,
+        minOrder = d(o, "min_order") ?: 0.0, maxDiscount = d(o, "max_discount"),
         usageLimit = i(o, "usage_limit"), usedCount = i(o, "used_count") ?: 0,
         active = b(o, "is_active") ?: true, startsAt = s(o, "starts_at"), expiresAt = s(o, "expires_at")
     )
@@ -152,9 +155,20 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
 
     suspend fun deleteProduct(id: String): Result<Unit> = runCatching { withContext(Dispatchers.IO) { api.delete("products", "id=eq.$id"); Unit }}
 
-    suspend fun addVariant(productId: String, label: String, grams: Int, price: Double, oldPrice: Double?, stock: Int): Result<ProductVariant> = runCatching { withContext(Dispatchers.IO) {
-        val body = buildJsonObject { put("product_id", productId); put("label", label); put("weight_grams", grams); put("price", price); put("old_price", oldPrice); put("stock_quantity", stock); put("is_active", true) }
+    suspend fun addVariant(productId: String, label: String, grams: Int, price: Double, oldPrice: Double?, stock: Int, sortOrder: Int = 0): Result<ProductVariant> = runCatching { withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            put("product_id", productId); put("label", label); put("weight_grams", grams); put("price", price);
+            put("old_price", oldPrice); put("stock_quantity", stock); put("is_active", true); put("sort_order", sortOrder)
+        }
         parseVariant(array(api.post("product_variants", body.toString())).first().jsonObject)
+    }}
+
+    suspend fun updateVariant(v: ProductVariant): Result<ProductVariant> = runCatching { withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            put("label", v.label); put("weight_grams", v.weightGrams); put("price", v.price); put("old_price", v.oldPrice);
+            put("stock_quantity", v.stock); put("is_active", v.active); put("sort_order", v.sortOrder)
+        }
+        parseVariant(array(api.patch("product_variants", "id=eq.${v.id}", body.toString())).first().jsonObject)
     }}
 
     suspend fun deleteVariant(id: String): Result<Unit> = runCatching { withContext(Dispatchers.IO) { api.delete("product_variants", "id=eq.$id"); Unit }}
@@ -176,18 +190,18 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     }}
 
     suspend fun addCoupon(code: String, title: String?, type: String, value: Double, minOrder: Double, maxDiscount: Double?, limit: Int?, startsAt: String?, expiresAt: String?): Result<Coupon> = runCatching { withContext(Dispatchers.IO) {
-        val body = buildJsonObject { put("code", code.uppercase()); put("description", title); put("discount_type", type); put("discount_value", value); put("min_order_amount", minOrder); put("max_discount", maxDiscount); put("usage_limit", limit); put("starts_at", startsAt); put("expires_at", expiresAt); put("is_active", true) }
+        val body = buildJsonObject { put("code", code.trim().uppercase()); put("title", title); put("discount_type", if (type == "percentage") "percent" else type); put("discount_value", value); put("min_order", minOrder); put("max_discount", maxDiscount); put("usage_limit", limit); put("starts_at", startsAt); put("expires_at", expiresAt); put("is_active", true) }
         parseCoupon(array(api.post("coupons", body.toString())).first().jsonObject)
     }}
 
     suspend fun updateCoupon(c: Coupon): Result<Coupon> = runCatching { withContext(Dispatchers.IO) {
-        val body = buildJsonObject { put("code", c.code.uppercase()); put("description", c.title); put("discount_type", c.discountType); put("discount_value", c.discountValue); put("min_order_amount", c.minOrder); put("max_discount", c.maxDiscount); put("usage_limit", c.usageLimit); put("is_active", c.active); put("starts_at", c.startsAt); put("expires_at", c.expiresAt) }
+        val body = buildJsonObject { put("code", c.code.trim().uppercase()); put("title", c.title); put("discount_type", if (c.discountType == "percentage") "percent" else c.discountType); put("discount_value", c.discountValue); put("min_order", c.minOrder); put("max_discount", c.maxDiscount); put("usage_limit", c.usageLimit); put("is_active", c.active); put("starts_at", c.startsAt); put("expires_at", c.expiresAt) }
         parseCoupon(array(api.patch("coupons", "id=eq.${c.id}", body.toString())).first().jsonObject)
     }}
 
     suspend fun deleteCoupon(id: String): Result<Unit> = runCatching { withContext(Dispatchers.IO) { api.delete("coupons", "id=eq.$id"); Unit }}
 
-    data class AdminSession(val accessToken: String, val userId: String, val email: String)
+    data class AdminSession(val accessToken: String, val refreshToken: String?, val userId: String, val email: String)
 
     suspend fun signInAdmin(email: String, password: String): Result<AdminSession> = runCatching { withContext(Dispatchers.IO) {
         val res = Json.parseToJsonElement(api.signIn(email, password)).jsonObject
@@ -197,7 +211,7 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         val profiles = array(api.getWithBearer("profiles", "?select=role&id=eq.$userId", token))
         val role = profiles.firstOrNull()?.jsonObject?.get("role")?.jsonPrimitive?.contentOrNull ?: "customer"
         if (role != "admin") throw IllegalStateException("এই অ্যাকাউন্টটি Admin নয়। profiles.role = admin করুন।")
-        AdminSession(token, userId, user["email"]?.jsonPrimitive?.contentOrNull ?: email)
+        AdminSession(token, res["refresh_token"]?.jsonPrimitive?.contentOrNull, userId, user["email"]?.jsonPrimitive?.contentOrNull ?: email)
     }}
 
     private fun slug(value: String): String = value.lowercase().trim().replace(Regex("[^a-z0-9\\u0980-\\u09FF]+"), "-").trim('-').ifBlank { "item" }

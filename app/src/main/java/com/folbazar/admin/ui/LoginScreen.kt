@@ -63,7 +63,7 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                     scope.launch {
                         Repository().signInAdmin(email.trim(), password).fold(
                             onSuccess = { adminSession ->
-                                Session.save(context, adminSession.accessToken, adminSession.email, adminSession.userId)
+                                Session.save(context, adminSession.accessToken, adminSession.email, adminSession.userId, adminSession.refreshToken)
                                 loading = false
                                 onLoggedIn()
                             },
