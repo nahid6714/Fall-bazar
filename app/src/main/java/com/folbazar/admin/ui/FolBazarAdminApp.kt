@@ -96,16 +96,33 @@ fun FolBazarAdminApp() {
     val revenue = orders.filter { it.status == "delivered" }.sumOf { it.total }
     RefreshableList(refresh, { refresh++ }) {
         item { Text("স্বাগতম 👋", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold); Text("ফল বাজারের সম্পূর্ণ নিয়ন্ত্রণ কেন্দ্র") }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) { Stat("পণ্য",products.size.toString(),Icons.Default.Inventory2,Modifier.weight(1f)); Stat("অর্ডার",orders.size.toString(),Icons.Default.ShoppingBag,Modifier.weight(1f)) } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) { Stat("কাস্টমার",customers.size.toString(),Icons.Default.People,Modifier.weight(1f)); Stat("Pending",pending.toString(),Icons.Default.Pending,Modifier.weight(1f)) } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) { Stat("Delivered Sales","৳ ${money(revenue)}",Icons.Default.Payments,Modifier.weight(1f)); Stat("অভিযোগ",complaints.count{it.status=="open"}.toString(),Icons.Default.ReportProblem,Modifier.weight(1f)) } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            Stat("পণ্য",products.size.toString(),Icons.Default.Inventory2,Modifier.weight(1f)) { nav.navigate("products") { launchSingleTop = true } }
+            Stat("অর্ডার",orders.size.toString(),Icons.Default.ShoppingBag,Modifier.weight(1f)) { nav.navigate("orders") { launchSingleTop = true } }
+        } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            Stat("কাস্টমার",customers.size.toString(),Icons.Default.People,Modifier.weight(1f)) { nav.navigate("customers") { launchSingleTop = true } }
+            Stat("Pending",pending.toString(),Icons.Default.Pending,Modifier.weight(1f)) { nav.navigate("orders") { launchSingleTop = true } }
+        } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+            Stat("Delivered Sales","৳ ${money(revenue)}",Icons.Default.Payments,Modifier.weight(1f)) { nav.navigate("orders") { launchSingleTop = true } }
+            Stat("অভিযোগ",complaints.count{it.status=="open"}.toString(),Icons.Default.ReportProblem,Modifier.weight(1f)) { nav.navigate("complaints") { launchSingleTop = true } }
+        } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(8.dp)) { FilledTonalButton({ nav.navigate("products") },Modifier.weight(1f)){Icon(Icons.Default.Add,null);Spacer(Modifier.width(4.dp));Text("পণ্য")}; FilledTonalButton({ nav.navigate("orders") },Modifier.weight(1f)){Icon(Icons.Default.ShoppingCart,null);Spacer(Modifier.width(4.dp));Text("অর্ডার")} } }
         item { OutlinedButton({ refresh++ }, Modifier.fillMaxWidth()) { Icon(Icons.Default.Refresh,null); Spacer(Modifier.width(6.dp)); Text("সব ডাটা রিফ্রেশ") } }
         error?.let { item { Text("Supabase: $it", color=MaterialTheme.colorScheme.error) } }
     }
 }
 
-@Composable private fun Stat(title:String,value:String,icon:ImageVector,modifier:Modifier){ Card(modifier){Column(Modifier.padding(14.dp)){Icon(icon,null,tint=MaterialTheme.colorScheme.primary);Text(title);Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)}} }
+@Composable private fun Stat(title:String,value:String,icon:ImageVector,modifier:Modifier,onClick:()->Unit){
+    Card(modifier.clickable(onClick = onClick)) {
+        Column(Modifier.padding(14.dp)) {
+            Icon(icon,null,tint=MaterialTheme.colorScheme.primary)
+            Text(title)
+            Text(value,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
+        }
+    }
+}
 
 @Composable private fun More(nav:NavHostController){
     LazyColumn(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
