@@ -61,3 +61,10 @@ require the app's **Install unknown apps** permission the first time.
 
 The automatic GitHub Actions build remains `.github/workflows/release.yml`.
 The older `release-apk.yml` is manual-only to prevent duplicate builds.
+
+
+## App icon and in-app updates
+- The launcher icon is the text-free fruit/admin logo in `app/src/main/res/drawable/app_logo.png`.
+- Settings includes GitHub Release update checking, download progress, and Android installer launch.
+- For updates to install over an existing APK, every release must use the same signing key.
+- The automatic `release.yml` workflow therefore requires `KEYSTORE_BASE64`, `KEYSTORE_STORE_PASSWORD`, and `KEYSTORE_KEY_PASSWORD` GitHub Actions secrets; the workflow detects the keystore alias automatically.

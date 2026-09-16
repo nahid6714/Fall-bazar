@@ -51,23 +51,21 @@ jobs:
         with:
           gradle-version: "8.10"
 
-      - name: Prepare Android signing key
+      - name: Prepare stable Android signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.android"
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -v \
-              -keystore "$HOME/.android/debug.keystore" \
-              -storepass android \
-              -alias androiddebugkey \
-              -keypass android \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
+          if [ -z "${KEYSTORE_BASE64:-}" ]; then
+            echo "ERROR: KEYSTORE_BASE64 GitHub Secret is required for updateable releases."
+            echo "The same signing key must be used for every APK update."
+            exit 1
           fi
-          test -f "$HOME/.android/debug.keystore"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/release-key.jks"
+          test -s "$GITHUB_WORKSPACE/release-key.jks"
 
       - name: Check Kotlin compilation
         shell: bash
@@ -127,6 +125,10 @@ jobs:
 
       - name: Sign and verify APK
         id: apk
+        env:
+          KEYSTORE_STORE_PASSWORD: ${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          KEYSTORE_KEY_PASSWORD: ${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_KEY_ALIAS }}
         shell: bash
         run: |
           set -euo pipefail
@@ -138,8 +140,13 @@ jobs:
             exit 1
           fi
 
+          if [ -z "${KEYSTORE_STORE_PASSWORD:-}" ] || [ -z "${KEYSTORE_KEY_PASSWORD:-}" ] || [ -z "${KEYSTORE_ALIAS:-}" ]; then
+            echo "ERROR: KEYSTORE_STORE_PASSWORD, KEYSTORE_KEY_PASSWORD and KEYSTORE_KEY_ALIAS secrets are required."
+            exit 1
+          fi
+
           BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
-          KEYSTORE="$HOME/.android/debug.keystore"
+          KEYSTORE="$GITHUB_WORKSPACE/release-key.jks"
           SIGNED_APK="app/build/outputs/apk/release/FolBazar-Admin-${GITHUB_RUN_NUMBER}.apk"
 
           # Normalize the APK first.
@@ -149,9 +156,9 @@ jobs:
           # signingConfig and guarantees an installable APK for this demo build.
           "$BUILD_TOOLS/apksigner" sign \
             --ks "$KEYSTORE" \
-            --ks-pass pass:android \
-            --ks-key-alias androiddebugkey \
-            --key-pass pass:android \
+            --ks-pass "env:KEYSTORE_STORE_PASSWORD" \
+            --ks-key-alias "$KEYSTORE_ALIAS" \
+            --key-pass "env:KEYSTORE_KEY_PASSWORD" \
             --out "$SIGNED_APK" \
             /tmp/aligned.apk
 

@@ -814,17 +814,18 @@ private fun SettingsScreen() {
                                                 .onFailure { message = it.message ?: "ইনস্টল শুরু করা যায়নি" }
                                         }
                                     },
-                                    Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.InstallMobile, null)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(
-                                        if (UpdateManager.canInstallPackages(context))
-                                            "আপডেট ইনস্টল করুন"
-                                        else
-                                            "Install permission চালু করুন"
-                                    )
-                                }
+                                    modifier = Modifier.fillMaxWidth(),
+                                    content = {
+                                        Icon(Icons.Default.InstallMobile, null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            if (UpdateManager.canInstallPackages(context))
+                                                "আপডেট ইনস্টল করুন"
+                                            else
+                                                "Install permission চালু করুন"
+                                        )
+                                    }
+                                )
                             } else {
                                 Button(
                                     onClick = {
@@ -834,16 +835,17 @@ private fun SettingsScreen() {
                                                 download = state
                                             }.fold(
                                                 { installedFile = it; download = DownloadState(progress = 100, downloadedBytes = it.length(), totalBytes = it.length(), file = it) },
-                                                { message = it.message ?: "ডাউনলোড ব্যর্থ হয়েছে"; download = DownloadState(error = message) }
+                                                { error -> message = error.message ?: "ডাউনলোড ব্যর্থ হয়েছে"; download = DownloadState(error = error.message) }
                                             )
                                         }
                                     },
-                                    Modifier.fillMaxWidth()
-                                ) {
-                                    Icon(Icons.Default.Download, null)
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("নতুন আপডেট ডাউনলোড করুন")
-                                }
+                                    modifier = Modifier.fillMaxWidth(),
+                                    content = {
+                                        Icon(Icons.Default.Download, null)
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("নতুন আপডেট ডাউনলোড করুন")
+                                    }
+                                )
                             }
                         }
                         else -> {
@@ -860,12 +862,13 @@ private fun SettingsScreen() {
                     OutlinedButton(
                         onClick = { check() },
                         enabled = !checking && !download.running,
-                        Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.Refresh, null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("আপডেট চেক করুন")
-                    }
+                        modifier = Modifier.fillMaxWidth(),
+                        content = {
+                            Icon(Icons.Default.Refresh, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("আপডেট চেক করুন")
+                        }
+                    )
                 }
             }
         }
