@@ -1,6 +1,0 @@
-{
-  "name": "Bus Terminal BD Admin",
-  "description": "Native Android admin app for managing Bus Terminal BD website - buses, operators, routes, schedules, fares, counters, mini coaches, tour packages, and bookings.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
