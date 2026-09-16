@@ -1,16 +1,22 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val localProperties = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+fun prop(n: String) = localProperties.getProperty(n, "")
+
 android {
     namespace="com.folbazar.admin"
     compileSdk=35
     defaultConfig { applicationId="com.folbazar.admin"; minSdk=26; targetSdk=35; versionCode=1; versionName="1.0.0" }
     buildFeatures { compose=true; buildConfig=true }
-    val lp=java.util.Properties(); val lf=rootProject.file("local.properties"); if(lf.exists()) lf.inputStream().use{lp.load(it)}
-    fun prop(n:String)=lp.getProperty(n, "")
     buildTypes {
         debug { buildConfigField("String","SUPABASE_URL","\"${prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${prop("CLOUDINARY_UPLOAD_PRESET")}\"") }
         release { isMinifyEnabled=false; proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"),"proguard-rules.pro"); buildConfigField("String","SUPABASE_URL","\"${System.getenv("SUPABASE_URL") ?: prop("SUPABASE_URL")}\""); buildConfigField("String","SUPABASE_PUBLISHABLE_KEY","\"${System.getenv("SUPABASE_PUBLISHABLE_KEY") ?: prop("SUPABASE_PUBLISHABLE_KEY")}\""); buildConfigField("String","CLOUDINARY_CLOUD_NAME","\"${System.getenv("CLOUDINARY_CLOUD_NAME") ?: prop("CLOUDINARY_CLOUD_NAME")}\""); buildConfigField("String","CLOUDINARY_UPLOAD_PRESET","\"${System.getenv("CLOUDINARY_UPLOAD_PRESET") ?: prop("CLOUDINARY_UPLOAD_PRESET")}\"") }

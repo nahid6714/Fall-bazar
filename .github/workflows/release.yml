@@ -1,6 +1,7 @@
 name: Android Release APK
 on:
   push:
+    branches: ["main"]
     tags: ["v*"]
   workflow_dispatch:
 permissions:
@@ -33,6 +34,7 @@ jobs:
           name: fol-bazar-admin-release
           path: app/build/outputs/apk/release/*.apk
       - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/release/*.apk
