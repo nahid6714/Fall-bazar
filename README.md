@@ -62,3 +62,10 @@ The Supabase service-role/secret key must never be placed inside the Android app
 The GitHub Actions workflow uses Android SDK command-line tools without requesting the
 removed legacy `tools` package. Every successful push to `main` builds the release APK,
 uploads an Actions artifact, and creates a GitHub Release such as `v1.0.12` with the APK attached.
+
+
+### Release workflow note
+
+The workflow does not assume the APK filename is `app-release.apk`.
+It searches the release output directory for the actual APK produced by Gradle,
+copies it to a stable `FolBazar-Admin-vX.Y.Z.apk` filename, then publishes that file.
