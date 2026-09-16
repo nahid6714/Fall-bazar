@@ -44,6 +44,16 @@ class SupabaseClient {
         return execute(r)
     }
 
+    /** GET with the just-issued Auth access token, so profile RLS applies. */
+    fun getWithBearer(table: String, query: String, accessToken: String): String {
+        val r = Request.Builder().url("$restBase/$table$query")
+            .addHeader("apikey", anonKey)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .get()
+            .build()
+        return execute(r)
+    }
+
     fun post(table: String, jsonBody: String): String {
         val r = Request.Builder().url("$restBase/$table").withAuth()
             .addHeader("Content-Type", "application/json")

@@ -110,16 +110,49 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
 
     // ---------- Auth ----------
 
-    /** Returns the access token on success. */
-    suspend fun signIn(email: String, password: String): Result<String> = runCatching {
+    data class AdminSession(
+        val accessToken: String,
+        val userId: String,
+        val email: String
+    )
+
+    /** Authenticates with Supabase, then verifies public.profiles.role == admin. */
+    suspend fun signInAdmin(email: String, password: String): Result<AdminSession> = runCatching {
         withContext(Dispatchers.IO) {
             val res = Json.parseToJsonElement(api.signIn(email, password)).jsonObject
-            res["access_token"]?.jsonPrimitive?.contentOrNull
+            val token = res["access_token"]?.jsonPrimitive?.contentOrNull
                 ?: throw IllegalStateException(
                     res["error_description"]?.jsonPrimitive?.contentOrNull
                         ?: res["msg"]?.jsonPrimitive?.contentOrNull
                         ?: "লগইন ব্যর্থ হয়েছে, ইমেইল/পাসওয়ার্ড যাচাই করুন"
                 )
+
+            val user = res["user"]?.jsonObject
+                ?: throw IllegalStateException("Supabase user তথ্য পাওয়া যায়নি")
+            val userId = user["id"]?.jsonPrimitive?.contentOrNull
+                ?: throw IllegalStateException("Supabase user ID পাওয়া যায়নি")
+
+            val profileJson = api.getWithBearer(
+                "profiles",
+                "?select=role&id=eq.$userId",
+                token
+            )
+            val profiles = Json.parseToJsonElement(profileJson).jsonArray
+            val role = profiles.firstOrNull()
+                ?.jsonObject?.get("role")?.jsonPrimitive?.contentOrNull
+                ?: "customer"
+
+            if (role != "admin") {
+                throw IllegalStateException(
+                    "এই অ্যাকাউন্টটি Admin নয়। Supabase-এর profiles টেবিলে এই ইউজারের role = admin করতে হবে।"
+                )
+            }
+
+            AdminSession(
+                accessToken = token,
+                userId = userId,
+                email = user["email"]?.jsonPrimitive?.contentOrNull ?: email
+            )
         }
     }
 }

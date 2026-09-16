@@ -61,9 +61,9 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                     error = null
                     loading = true
                     scope.launch {
-                        Repository().signIn(email.trim(), password).fold(
-                            onSuccess = { token ->
-                                Session.save(context, token, email.trim())
+                        Repository().signInAdmin(email.trim(), password).fold(
+                            onSuccess = { adminSession ->
+                                Session.save(context, adminSession.accessToken, adminSession.email, adminSession.userId)
                                 loading = false
                                 onLoggedIn()
                             },
@@ -82,7 +82,7 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
 
             Spacer(Modifier.height(12.dp))
             Text(
-                "এই Supabase প্রজেক্টে অ্যাডমিনের জন্য একটি Auth ইউজার (ইমেইল/পাসওয়ার্ড) তৈরি থাকতে হবে।",
+                "শুধু Supabase Auth ইউজার নয়—এই ইউজারের profiles.role = admin হতে হবে।",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

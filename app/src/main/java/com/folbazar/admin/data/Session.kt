@@ -12,6 +12,8 @@ object Session {
         private set
     var email: String? = null
         private set
+    var userId: String? = null
+        private set
 
     val isLoggedIn: Boolean get() = accessToken != null
 
@@ -19,20 +21,24 @@ object Session {
         val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         accessToken = p.getString("access_token", null)
         email = p.getString("email", null)
+        userId = p.getString("user_id", null)
     }
 
-    fun save(context: Context, token: String, email: String) {
+    fun save(context: Context, token: String, email: String, userId: String) {
         accessToken = token
         this.email = email
+        this.userId = userId
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             putString("access_token", token)
             putString("email", email)
+            putString("user_id", userId)
         }
     }
 
     fun clear(context: Context) {
         accessToken = null
         email = null
+        userId = null
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { clear() }
     }
 }

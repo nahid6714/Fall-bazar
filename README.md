@@ -128,3 +128,11 @@ compilation errors are detected early.
 The Supabase schema uses `public.profiles` for customer accounts; there is no
 `public.customers` table. The Admin app now reads customer profiles from
 `profiles` instead of requesting the nonexistent `customers` table.
+
+
+## v12: Admin-only authorization
+
+A valid Supabase Auth email/password is not sufficient for this app.
+After authentication, the app checks the signed-in user's `public.profiles.role`
+using the authenticated access token. Only `role = admin` is accepted. Customer,
+reseller, and seller accounts are rejected before an admin session is stored.
