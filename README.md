@@ -98,3 +98,10 @@ The release workflow includes Gradle/Maven HTTP timeouts, retry settings, and fi
 build attempts with increasing waits. This protects the build from temporary Maven
 Central `429 Too Many Requests` responses. It does not treat a network rate-limit
 as an application-code failure.
+
+
+## APK signing fix v8
+
+The CI workflow explicitly runs `zipalign` and `apksigner sign` after Gradle builds
+the APK, then verifies the final APK with `apksigner verify`. This avoids publishing
+an unsigned/invalid APK and removes the previous META-INF verification failure.
