@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavHostController
@@ -895,6 +896,7 @@ private fun CategoryEditorDialog(
     onDismiss: () -> Unit,
     onSave: (String, String?, String?, Int) -> Unit
 ) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var description by remember { mutableStateOf(initial?.description ?: "") }
     var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
@@ -917,7 +919,7 @@ private fun CategoryEditorDialog(
                     onImageUrlChange = { imageUrl = it },
                     label = "ক্যাটাগরির ছবি",
                     height = 150.dp,
-                    onUpload = { uri -> CloudinaryClient(LocalContext.current).uploadImage(uri) }
+                    onUpload = { uri -> CloudinaryClient(context).uploadImage(uri) }
                 )
                 Field(sortOrder, { sortOrder = it }, "Sort order", KeyboardType.Number)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
