@@ -70,6 +70,19 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         status = s(o, "status") ?: "open", adminNote = s(o, "admin_note"), createdAt = s(o, "created_at")
     )
 
+    private fun parseBanner(o: JsonObject) = SiteBanner(
+        id = s(o, "id") ?: "",
+        bannerType = s(o, "banner_type") ?: "hero",
+        title = s(o, "title"),
+        altText = s(o, "alt_text") ?: "ফল বাজার ব্যানার",
+        imageUrl = s(o, "image_url") ?: "",
+        linkUrl = s(o, "link_url"),
+        sortOrder = i(o, "sort_order") ?: 0,
+        active = b(o, "is_active") ?: true,
+        createdAt = s(o, "created_at"),
+        updatedAt = s(o, "updated_at")
+    )
+
     private fun parseCoupon(o: JsonObject) = Coupon(
         id = s(o, "id") ?: "", code = s(o, "code") ?: "", title = s(o, "title"),
         discountType = s(o, "discount_type") ?: "percent", discountValue = d(o, "discount_value") ?: 0.0,
@@ -120,6 +133,28 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     suspend fun coupons(): Result<List<Coupon>> = runCatching { withContext(Dispatchers.IO) {
         array(api.get("coupons", "?select=*&order=created_at.desc")).map { parseCoupon(it.jsonObject) }
     }}
+
+    suspend fun banners(): Result<List<SiteBanner>> = runCatching { withContext(Dispatchers.IO) {
+        array(api.get("site_banners", "?select=*&order=banner_type.asc,sort_order.asc,created_at.desc")).map { parseBanner(it.jsonObject) }
+    }}
+
+    suspend fun addBanner(bannerType: String, title: String?, altText: String, imageUrl: String, linkUrl: String?, sortOrder: Int): Result<SiteBanner> = runCatching { withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            put("banner_type", bannerType); put("title", title); put("alt_text", altText.ifBlank { "ফল বাজার ব্যানার" });
+            put("image_url", imageUrl); put("link_url", linkUrl); put("sort_order", sortOrder); put("is_active", true)
+        }
+        parseBanner(array(api.post("site_banners", body.toString())).first().jsonObject)
+    }}
+
+    suspend fun updateBanner(b: SiteBanner): Result<SiteBanner> = runCatching { withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            put("banner_type", b.bannerType); put("title", b.title); put("alt_text", b.altText); put("image_url", b.imageUrl);
+            put("link_url", b.linkUrl); put("sort_order", b.sortOrder); put("is_active", b.active)
+        }
+        parseBanner(array(api.patch("site_banners", "id=eq.${b.id}", body.toString())).first().jsonObject)
+    }}
+
+    suspend fun deleteBanner(id: String): Result<Unit> = runCatching { withContext(Dispatchers.IO) { api.delete("site_banners", "id=eq.$id"); Unit }}
 
     suspend fun addCategory(name: String, description: String?, imageUrl: String?, sortOrder: Int): Result<Category> = runCatching { withContext(Dispatchers.IO) {
         val slug = slug(name) + "-" + System.currentTimeMillis().toString().takeLast(6)

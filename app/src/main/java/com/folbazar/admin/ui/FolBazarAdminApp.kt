@@ -64,7 +64,7 @@ fun FolBazarAdminApp() {
         bottomBar = {
             NavigationBar {
                 val current = nav.currentBackStackEntryAsState().value?.destination?.route
-                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist","settings")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }) }
+                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist","banners","settings")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }) }
             }
         }
     ) { padding ->
@@ -78,6 +78,7 @@ fun FolBazarAdminApp() {
             composable("complaints") { Complaints() }
             composable("coupons") { Coupons() }
             composable("wishlist") { Wishlist() }
+            composable("banners") { Banners() }
             composable("settings") { SettingsScreen(onLogout = { Session.clear(context); loggedIn = false }) }
         }
     }
@@ -97,7 +98,7 @@ fun FolBazarAdminApp() {
     }
     val pending = orders.count { it.status in setOf("pending","confirmed","processing","packed") }
     val revenue = orders.filter { it.status == "delivered" }.sumOf { it.total }
-    RefreshableList(refresh, { refresh++ }) {
+    RefreshableList(refresh, { refresh++ }, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp)) {
         item { Text("স্বাগতম 👋", style=MaterialTheme.typography.headlineSmall, fontWeight=FontWeight.Bold); Text("ফল বাজারের সম্পূর্ণ নিয়ন্ত্রণ কেন্দ্র") }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             Stat("পণ্য",products.size.toString(),Icons.Default.Inventory2,Modifier.weight(1f)) { nav.navigate("products") { launchSingleTop = true } }
@@ -127,6 +128,7 @@ fun FolBazarAdminApp() {
             DashboardShortcut("Wishlist", Icons.Default.Favorite, Modifier.weight(1f)) { nav.navigate("wishlist") { launchSingleTop = true } }
             DashboardShortcut("সেটিংস", Icons.Default.Settings, Modifier.weight(1f)) { nav.navigate("settings") { launchSingleTop = true } }
         } }
+        item { DashboardShortcut("ব্যানার", Icons.Default.Image, Modifier.fillMaxWidth()) { nav.navigate("banners") { launchSingleTop = true } } }
         error?.let { item { Text("Supabase: $it", color=MaterialTheme.colorScheme.error) } }
     }
 }
@@ -162,6 +164,7 @@ private fun DashboardShortcut(title: String, icon: ImageVector, modifier: Modifi
         item{AdminAction("অভিযোগ","অভিযোগ দেখা, নোট ও status পরিবর্তন",Icons.Default.ReportProblem){nav.navigate("complaints")}}
         item{AdminAction("কুপন / ডিসকাউন্ট","coupon code, percent/fixed discount, limit",Icons.Default.LocalOffer){nav.navigate("coupons")}}
         item{AdminAction("Wishlist","কোন পণ্য কতবার wishlist হয়েছে",Icons.Default.Favorite){nav.navigate("wishlist")}}
+        item{AdminAction("ওয়েবসাইট ব্যানার","Hero/Promo banner যোগ, edit, active/off, delete ও Cloudinary image",Icons.Default.Image){nav.navigate("banners")}}
         item{AdminAction("সেটিংস / App Update","অ্যাপ আপডেট চেক, ডাউনলোড ও ইনস্টল",Icons.Default.Settings){nav.navigate("settings")}}
         item{Text("নিরাপত্তা: database RLS policy-ই চূড়ান্ত permission; app শুধু admin JWT দিয়ে কাজ করে.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
     }
@@ -411,6 +414,7 @@ private fun VariantEditorDialog(initial: ProductVariant?, onDismiss: () -> Unit,
 private fun RefreshableList(
     refreshKey: Int,
     onRefresh: () -> Unit,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
     content: LazyListScope.() -> Unit
 ) {
     var refreshing by remember { mutableStateOf(false) }
@@ -436,6 +440,7 @@ private fun RefreshableList(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = contentPadding,
             content = content
         )
     }
@@ -1388,6 +1393,132 @@ private fun Complaints() {
             }
         }
     }
+}
+
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Banners() {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var list by remember { mutableStateOf<List<SiteBanner>>(emptyList()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var selected by remember { mutableStateOf<SiteBanner?>(null) }
+    var showEditor by remember { mutableStateOf(false) }
+    var refresh by remember { mutableStateOf(0) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(refresh) {
+        loading = true
+        Repository().banners().fold({ list = it; error = null }, { error = it.message })
+        loading = false
+    }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("ওয়েবসাইট ব্যানার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("Hero ও Promo banner সরাসরি Supabase থেকে নিয়ন্ত্রণ করুন", style = MaterialTheme.typography.bodySmall)
+            }
+            Button(onClick = { selected = null; showEditor = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("যোগ") }
+        }
+        Spacer(Modifier.height(10.dp))
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        RefreshableList(refresh, { refresh++ }) {
+            if (loading && list.isEmpty()) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            else if (!loading && list.isEmpty()) item { EmptyState("এখনও কোনো ব্যানার নেই") }
+            items(list, key = { it.id }) { b ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AsyncImage(model = b.imageUrl, contentDescription = b.altText, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 190.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(b.title?.ifBlank { null } ?: "ব্যানার", fontWeight = FontWeight.Bold)
+                                Text("${b.bannerType.uppercase()} • ${if (b.active) "Active" else "Off"} • Sort ${b.sortOrder}", style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(onClick = { selected = b; showEditor = true }) { Text("এডিট") }
+                            TextButton(onClick = {
+                                scope.launch { Repository().deleteBanner(b.id).fold({ refresh++ }, { error = it.message }) }
+                            }) { Text("ডিলিট", color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showEditor) {
+        BannerEditorDialog(initial = selected, onDismiss = { showEditor = false }) { bannerType, title, altText, imageUrl, linkUrl, sortOrder, active ->
+            scope.launch {
+                val repo = Repository()
+                val result = if (selected == null) {
+                    repo.addBanner(bannerType, title, altText, imageUrl, linkUrl, sortOrder)
+                } else {
+                    repo.updateBanner(selected!!.copy(bannerType = bannerType, title = title, altText = altText, imageUrl = imageUrl, linkUrl = linkUrl, sortOrder = sortOrder, active = active))
+                }
+                result.fold({ showEditor = false; refresh++ }, { error = it.message })
+            }
+        }
+    }
+}
+
+@Composable
+private fun BannerEditorDialog(
+    initial: SiteBanner?,
+    onDismiss: () -> Unit,
+    onSave: (String, String?, String, String, String?, Int, Boolean) -> Unit
+) {
+    val context = LocalContext.current
+    var type by remember { mutableStateOf(initial?.bannerType ?: "hero") }
+    var title by remember { mutableStateOf(initial?.title ?: "") }
+    var alt by remember { mutableStateOf(initial?.altText ?: "ফল বাজার ব্যানার") }
+    var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
+    var link by remember { mutableStateOf(initial?.linkUrl ?: "") }
+    var sort by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
+    var active by remember { mutableStateOf(initial?.active ?: true) }
+    var uploading by remember { mutableStateOf(false) }
+    val uploadScope = rememberCoroutineScope()
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            uploading = true
+            uploadScope.launch {
+                CloudinaryClient(context).uploadImage(uri).fold(
+                    { imageUrl = it },
+                    { Toast.makeText(context, it.message ?: "ছবি আপলোড ব্যর্থ", Toast.LENGTH_LONG).show() }
+                )
+                uploading = false
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "নতুন ব্যানার" else "ব্যানার এডিট") },
+        text = {
+            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(type == "hero", { type = "hero" }, label = { Text("Hero") })
+                    FilterChip(type == "promo", { type = "promo" }, label = { Text("Promo") })
+                }
+                Field(title, { title = it }, "Title")
+                Field(alt, { alt = it }, "Alt text")
+                Field(imageUrl, { imageUrl = it }, "Image URL")
+                OutlinedButton(onClick = { launcher.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading) {
+                    Text(if (uploading) "Cloudinary-তে আপলোড হচ্ছে…" else "Cloudinary থেকে ছবি নির্বাচন")
+                }
+                if (imageUrl.isNotBlank()) AsyncImage(model = imageUrl, contentDescription = alt, modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp))
+                Field(link, { link = it }, "Link URL (optional)")
+                Field(sort, { sort = it }, "Sort order", KeyboardType.Number)
+                SwitchRow("Active", active) { active = it }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = imageUrl.isNotBlank() && sort.toIntOrNull() != null && !uploading, onClick = {
+                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active)
+            }) { Text("সেভ") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }
+    )
 }
 
 @Composable private fun Wishlist(){
