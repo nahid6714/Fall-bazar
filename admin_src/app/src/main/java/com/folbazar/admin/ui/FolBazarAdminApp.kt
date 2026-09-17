@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavHostController
@@ -618,7 +619,7 @@ private fun ProductDialog(
                                     contentDescription = "Product image",
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small)
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
                                         .combinedClickable(
                                             onClick = { image = url },
                                             onLongClick = { copyImageLink(context, url) }
@@ -843,7 +844,7 @@ private fun AdminImageControl(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height)
-                .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
+                .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -861,10 +862,10 @@ private fun AdminImageControl(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = { picker.launch("image/*") },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = !uploading
             ) {
                 Icon(Icons.Default.AddPhotoAlternate, null)
@@ -873,7 +874,7 @@ private fun AdminImageControl(
             }
             OutlinedButton(
                 onClick = { onImageUrlChange("") },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = imageUrl.isNotBlank() && !uploading,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
@@ -1553,12 +1554,12 @@ private fun Banners() {
             items(list, key = { it.id }) { b ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Box(Modifier.fillMaxWidth().height(250.dp).clip(MaterialTheme.shapes.medium), contentAlignment = Alignment.Center) {
+                        Box(Modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
                             AsyncImage(
                                 model = b.imageUrl,
                                 contentDescription = b.altText,
                                 modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
+                                contentScale = ContentScale.Fit,
                                 alignment = Alignment.Center
                             )
                         }
@@ -1642,7 +1643,7 @@ private fun BannerEditorDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.large)
+                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
                         .padding(8.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1655,8 +1656,8 @@ private fun BannerEditorDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(livePreviewHeight)
-                                .clip(MaterialTheme.shapes.medium)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.medium),
+                                .clip(RoundedCornerShape(4.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (imageUrl.isNotBlank()) {
@@ -1678,13 +1679,13 @@ private fun BannerEditorDialog(
                             label = { Text("Image URL") },
                             singleLine = true
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.weight(1f), enabled = !uploading) {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading) {
                                 Icon(Icons.Default.AddPhotoAlternate, null)
                                 Spacer(Modifier.width(4.dp))
-                                Text(if (uploading) "আপলোড…" else "ছবি নির্বাচন")
+                                Text(if (uploading) "আপলোড…" else "ছবি নির্বাচন / আপলোড")
                             }
-                            OutlinedButton(onClick = { imageUrl = "" }, modifier = Modifier.weight(1f), enabled = imageUrl.isNotBlank() && !uploading, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                            OutlinedButton(onClick = { imageUrl = "" }, modifier = Modifier.fillMaxWidth(), enabled = imageUrl.isNotBlank() && !uploading, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                 Icon(Icons.Default.Delete, null)
                                 Spacer(Modifier.width(4.dp))
                                 Text("ছবি মুছুন")
