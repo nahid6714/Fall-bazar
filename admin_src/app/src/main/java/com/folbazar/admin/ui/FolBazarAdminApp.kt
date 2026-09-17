@@ -807,6 +807,8 @@ private fun ProductDialog(
 }
 
 
+private val AdminControlButtonShape = RoundedCornerShape(10.dp)
+
 @Composable
 private fun AdminImageControl(
     imageUrl: String,
@@ -866,7 +868,8 @@ private fun AdminImageControl(
             OutlinedButton(
                 onClick = { picker.launch("image/*") },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uploading
+                enabled = !uploading,
+                shape = AdminControlButtonShape
             ) {
                 Icon(Icons.Default.AddPhotoAlternate, null)
                 Spacer(Modifier.width(5.dp))
@@ -876,6 +879,7 @@ private fun AdminImageControl(
                 onClick = { onImageUrlChange("") },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = imageUrl.isNotBlank() && !uploading,
+                shape = AdminControlButtonShape,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
                 Icon(Icons.Default.Delete, null)
@@ -1643,7 +1647,7 @@ private fun BannerEditorDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
                         .padding(8.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1665,7 +1669,7 @@ private fun BannerEditorDialog(
                                     model = imageUrl,
                                     contentDescription = alt,
                                     modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop,
+                                    contentScale = ContentScale.Fit,
                                     alignment = Alignment.Center
                                 )
                             } else {
@@ -1680,21 +1684,29 @@ private fun BannerEditorDialog(
                             singleLine = true
                         )
                         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading) {
+                            OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading, shape = AdminControlButtonShape) {
                                 Icon(Icons.Default.AddPhotoAlternate, null)
                                 Spacer(Modifier.width(4.dp))
                                 Text(if (uploading) "আপলোড…" else "ছবি নির্বাচন / আপলোড")
                             }
-                            OutlinedButton(onClick = { imageUrl = "" }, modifier = Modifier.fillMaxWidth(), enabled = imageUrl.isNotBlank() && !uploading, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                            OutlinedButton(onClick = { imageUrl = "" }, modifier = Modifier.fillMaxWidth(), enabled = imageUrl.isNotBlank() && !uploading, shape = AdminControlButtonShape, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                 Icon(Icons.Default.Delete, null)
                                 Spacer(Modifier.width(4.dp))
                                 Text("ছবি মুছুন")
                             }
                         }
                         Text(
-                            "ছবিটি Website-এর বর্তমান 250px banner frame-এর মতোই crop হয়ে Preview-তে দেখা যাবে। Width/Height পরিবর্তনের কোনো অপশন নেই।",
+                            "Website-এর normal content width অনুযায়ী banner responsive হবে। Width/Height আলাদা করে পরিবর্তনের কোনো অপশন নেই।",
                             style = MaterialTheme.typography.bodySmall
                         )
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("প্রস্তাবিত ব্যানার সাইজ", fontWeight = FontWeight.Bold)
+                                Text("Hero: 1600 × 600 px", style = MaterialTheme.typography.bodySmall)
+                                Text("Promo: 1600 × 350 px", style = MaterialTheme.typography.bodySmall)
+                                Text("Width/Height Admin থেকে পরিবর্তন করা যাবে না; Website নিজে responsive ভাবে size নেবে।", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                     }
                 }
                 Field(link, { link = it }, "Link URL (optional)")
