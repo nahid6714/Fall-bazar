@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -25,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -581,8 +583,22 @@ private fun ProductDialog(
                     }
                 }
 
+                AdminImageControl(
+                    imageUrl = image ?: "",
+                    onImageUrlChange = { value ->
+                        val oldImage = image
+                        image = value.ifBlank { null }
+                        if (value.isBlank() && oldImage != null) {
+                            galleryUrls = galleryUrls.filterNot { it == oldImage }
+                        }
+                    },
+                    label = "প্রধান পণ্যের ছবি",
+                    height = 180.dp,
+                    onUpload = { uri -> CloudinaryClient(context).uploadImage(uri) }
+                )
+
                 Text(
-                    "ছবি",
+                    "অতিরিক্ত ছবি",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -595,14 +611,29 @@ private fun ProductDialog(
                 if (galleryUrls.isNotEmpty()) {
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(galleryUrls, key = { it }) { url ->
-                            AsyncImage(
-                                model = url,
-                                contentDescription = "Product image",
-                                modifier = Modifier.size(82.dp).combinedClickable(
-                                    onClick = { image = url },
-                                    onLongClick = { copyImageLink(context, url) }
+                            Box(Modifier.size(92.dp)) {
+                                AsyncImage(
+                                    model = url,
+                                    contentDescription = "Product image",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small)
+                                        .combinedClickable(
+                                            onClick = { image = url },
+                                            onLongClick = { copyImageLink(context, url) }
+                                        ),
+                                    contentScale = ContentScale.Crop
                                 )
-                            )
+                                IconButton(
+                                    onClick = {
+                                        galleryUrls = galleryUrls.filterNot { it == url }
+                                        if (image == url) image = galleryUrls.firstOrNull()
+                                    },
+                                    modifier = Modifier.align(Alignment.TopEnd).size(30.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, "ছবি মুছুন")
+                                }
+                            }
                         }
                     }
                 }
@@ -773,6 +804,91 @@ private fun ProductDialog(
     }
 }
 
+
+@Composable
+private fun AdminImageControl(
+    imageUrl: String,
+    onImageUrlChange: (String) -> Unit,
+    label: String = "ছবি",
+    height: Dp = 190.dp,
+    onUpload: suspend (Uri) -> Result<String>
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var uploading by remember { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            uploading = true
+            scope.launch {
+                onUpload(uri).fold(
+                    { onImageUrlChange(it) },
+                    { Toast.makeText(context, it.message ?: "ছবি আপলোড ব্যর্থ", Toast.LENGTH_LONG).show() }
+                )
+                uploading = false
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        OutlinedTextField(
+            value = imageUrl,
+            onValueChange = onImageUrlChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Image URL") },
+            singleLine = true
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
+                .padding(6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (imageUrl.isNotBlank()) {
+                AsyncImage(
+                    model = imageUrl,
+                    contentDescription = label,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+            } else {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Image, null, modifier = Modifier.size(42.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("এখানেই ছবির Live Preview", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { picker.launch("image/*") },
+                modifier = Modifier.weight(1f),
+                enabled = !uploading
+            ) {
+                Icon(Icons.Default.AddPhotoAlternate, null)
+                Spacer(Modifier.width(5.dp))
+                Text(if (uploading) "আপলোড হচ্ছে…" else "ছবি নির্বাচন / আপলোড")
+            }
+            OutlinedButton(
+                onClick = { onImageUrlChange("") },
+                modifier = Modifier.weight(1f),
+                enabled = imageUrl.isNotBlank() && !uploading,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            ) {
+                Icon(Icons.Default.Delete, null)
+                Spacer(Modifier.width(5.dp))
+                Text("ছবি মুছুন")
+            }
+        }
+        Text(
+            "URL লিখলে বা ছবি আপলোড করলে একই Frame-এর ভিতরেই Live Preview দেখা যাবে।",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
 @Composable
 private fun CategoryEditorDialog(
     initial: Category?,
@@ -796,7 +912,13 @@ private fun CategoryEditorDialog(
             ) {
                 Field(name, { name = it }, "ক্যাটাগরির নাম")
                 Field(description, { description = it }, "বিবরণ", single = false)
-                Field(imageUrl, { imageUrl = it }, "ছবির URL")
+                AdminImageControl(
+                    imageUrl = imageUrl,
+                    onImageUrlChange = { imageUrl = it },
+                    label = "ক্যাটাগরির ছবি",
+                    height = 150.dp,
+                    onUpload = { uri -> CloudinaryClient(LocalContext.current).uploadImage(uri) }
+                )
                 Field(sortOrder, { sortOrder = it }, "Sort order", KeyboardType.Number)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     Text(
@@ -1480,7 +1602,7 @@ private fun BannerEditorDialog(
     var heightPx by remember { mutableFloatStateOf((initial?.heightPx ?: 180).coerceIn(120, 500).toFloat()) }
     var uploading by remember { mutableStateOf(false) }
     val uploadScope = rememberCoroutineScope()
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             uploading = true
             uploadScope.launch {
@@ -1504,28 +1626,65 @@ private fun BannerEditorDialog(
                 }
                 Field(title, { title = it }, "Title")
                 Field(alt, { alt = it }, "Alt text")
-                Field(imageUrl, { imageUrl = it }, "Image URL")
-                OutlinedButton(onClick = { launcher.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading) {
-                    Text(if (uploading) "Cloudinary-তে আপলোড হচ্ছে…" else "Cloudinary থেকে ছবি নির্বাচন")
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.large)
+                        .padding(8.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Website Banner Frame", fontWeight = FontWeight.Bold)
+                        Text("এই Frame-টাই Website-এ banner-এর নির্ধারিত জায়গা হিসেবে ধরুন।", style = MaterialTheme.typography.bodySmall)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(heightPx.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.medium)
+                                .padding(4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (imageUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = imageUrl,
+                                    contentDescription = alt,
+                                    modifier = Modifier
+                                        .fillMaxWidth(widthPercent / 100f)
+                                        .fillMaxHeight(),
+                                    contentScale = ContentScale.Fit
+                                )
+                            } else {
+                                Text("ছবির Live Preview", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        OutlinedTextField(
+                            value = imageUrl,
+                            onValueChange = { imageUrl = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Image URL") },
+                            singleLine = true
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.weight(1f), enabled = !uploading) {
+                                Icon(Icons.Default.AddPhotoAlternate, null)
+                                Spacer(Modifier.width(4.dp))
+                                Text(if (uploading) "আপলোড…" else "ছবি নির্বাচন")
+                            }
+                            OutlinedButton(onClick = { imageUrl = "" }, modifier = Modifier.weight(1f), enabled = imageUrl.isNotBlank() && !uploading, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                                Icon(Icons.Default.Delete, null)
+                                Spacer(Modifier.width(4.dp))
+                                Text("ছবি মুছুন")
+                            }
+                        }
+                        Text("Width: ${widthPercent.toInt()}%", fontWeight = FontWeight.SemiBold)
+                        Slider(value = widthPercent, onValueChange = { widthPercent = it }, valueRange = 50f..100f, steps = 9)
+                        Text("Height: ${heightPx.toInt()} px", fontWeight = FontWeight.SemiBold)
+                        Slider(value = heightPx, onValueChange = { heightPx = it }, valueRange = 120f..500f, steps = 18)
+                        Text("Slider টানলে উপরের Website Frame-এর ভিতরেই ছবির size live পরিবর্তন হবে।", style = MaterialTheme.typography.bodySmall)
+                    }
                 }
-                if (imageUrl.isNotBlank()) AsyncImage(model = imageUrl, contentDescription = alt, modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp))
                 Field(link, { link = it }, "Link URL (optional)")
                 Field(sort, { sort = it }, "Sort order", KeyboardType.Number)
-                Text("Banner width: ${widthPercent.toInt()}%", fontWeight = FontWeight.SemiBold)
-                Slider(
-                    value = widthPercent,
-                    onValueChange = { widthPercent = it },
-                    valueRange = 50f..100f,
-                    steps = 9
-                )
-                Text("Banner height: ${heightPx.toInt()} px", fontWeight = FontWeight.SemiBold)
-                Slider(
-                    value = heightPx,
-                    onValueChange = { heightPx = it },
-                    valueRange = 120f..500f,
-                    steps = 18
-                )
-                Text("টেনে ছোট/বড় করে banner-এর size ঠিক করুন", style = MaterialTheme.typography.bodySmall)
                 SwitchRow("Active", active) { active = it }
             }
         },
