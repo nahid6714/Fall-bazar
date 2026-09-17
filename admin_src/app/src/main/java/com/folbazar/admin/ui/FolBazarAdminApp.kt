@@ -1553,7 +1553,15 @@ private fun Banners() {
             items(list, key = { it.id }) { b ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AsyncImage(model = b.imageUrl, contentDescription = b.altText, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 190.dp))
+                        Box(Modifier.fillMaxWidth().height(250.dp).clip(MaterialTheme.shapes.medium), contentAlignment = Alignment.Center) {
+                            AsyncImage(
+                                model = b.imageUrl,
+                                contentDescription = b.altText,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                alignment = Alignment.Center
+                            )
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(b.title?.ifBlank { null } ?: "ব্যানার", fontWeight = FontWeight.Bold)
@@ -1599,11 +1607,11 @@ private fun BannerEditorDialog(
     var link by remember { mutableStateOf(initial?.linkUrl ?: "") }
     var sort by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
     var active by remember { mutableStateOf(initial?.active ?: true) }
-    // Keep the editor defaults aligned with the live website's current hero frame.
-    // The website currently uses a 250px hero viewport; the controls below let the
-    // admin preview the configured frame and reset it to the standard defaults.
+    // The live mobile website currently uses a fixed hero viewport and crops artwork.
+    // Keep this preview independent from heightPx so it mirrors the live crop.
     val defaultWidthPercent = 100f
     val defaultHeightPx = 250f
+    val livePreviewHeight = 250.dp
     var widthPercent by remember { mutableFloatStateOf((initial?.widthPercent ?: defaultWidthPercent.toInt()).coerceIn(50, 100).toFloat()) }
     var heightPx by remember { mutableFloatStateOf((initial?.heightPx ?: defaultHeightPx.toInt()).coerceIn(120, 500).toFloat()) }
     var uploading by remember { mutableStateOf(false) }
@@ -1640,15 +1648,15 @@ private fun BannerEditorDialog(
                         .padding(8.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Website Banner Frame", fontWeight = FontWeight.Bold)
-                        Text("এই Frame-টাই Website-এ banner-এর নির্ধারিত জায়গা হিসেবে ধরুন।", style = MaterialTheme.typography.bodySmall)
-                        // This viewport is intentionally clipped: anything outside it is
-                        // exactly the part an image editor needs to account for when the
-                        // website frame crops/overflows the artwork.
+                        Text("Live Website Preview", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Website-এ বর্তমানে যে frame ও crop দেখা যায়, Preview-তেও ঠিক সেটাই দেখানো হবে।",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(heightPx.dp)
+                                .height(livePreviewHeight)
                                 .clip(MaterialTheme.shapes.medium)
                                 .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.medium),
                             contentAlignment = Alignment.Center
@@ -1657,9 +1665,7 @@ private fun BannerEditorDialog(
                                 AsyncImage(
                                     model = imageUrl,
                                     contentDescription = alt,
-                                    modifier = Modifier
-                                        .fillMaxWidth(widthPercent / 100f)
-                                        .fillMaxHeight(),
+                                    modifier = Modifier.fillMaxSize(),
                                     contentScale = ContentScale.Crop,
                                     alignment = Alignment.Center
                                 )
@@ -1686,22 +1692,20 @@ private fun BannerEditorDialog(
                                 Text("ছবি মুছুন")
                             }
                         }
-                        Text("Width: ${widthPercent.toInt()}%", fontWeight = FontWeight.SemiBold)
+                        Text("Width setting: ${widthPercent.toInt()}%", fontWeight = FontWeight.SemiBold)
                         Slider(value = widthPercent, onValueChange = { widthPercent = it }, valueRange = 50f..100f, steps = 9)
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text("Height: ${heightPx.toInt()} px", fontWeight = FontWeight.SemiBold)
+                                Text("Height value: ${heightPx.toInt()} px", fontWeight = FontWeight.SemiBold)
                                 Slider(value = heightPx, onValueChange = { heightPx = it }, valueRange = 120f..500f, steps = 18)
                             }
                             TextButton(onClick = {
                                 widthPercent = defaultWidthPercent
                                 heightPx = defaultHeightPx
-                            }) {
-                                Text("ডিফল্ট")
-                            }
+                            }) { Text("ডিফল্ট") }
                         }
                         Text(
-                            "Preview-তে frame-এর বাইরে চলে যাওয়া অংশ দেখা যাবে না—তাই Website-এ কোন অংশ থাকবে তা আগে থেকেই বোঝা যাবে।",
+                            "নোট: Preview live Website-এর বর্তমান fixed 250px crop behavior অনুসরণ করে। তাই 120/180px value দিলেও Preview-এর frame 250px-ই থাকবে।",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
