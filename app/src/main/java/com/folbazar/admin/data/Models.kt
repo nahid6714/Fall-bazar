@@ -124,6 +124,8 @@ data class SiteBanner(
     val linkUrl: String? = null,
     val sortOrder: Int = 0,
     val active: Boolean = true,
+    val widthPercent: Int = 100,
+    val heightPx: Int = 180,
     val createdAt: String? = null,
     val updatedAt: String? = null
 )

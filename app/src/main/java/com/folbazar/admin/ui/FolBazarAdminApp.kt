@@ -1434,7 +1434,7 @@ private fun Banners() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(b.title?.ifBlank { null } ?: "ব্যানার", fontWeight = FontWeight.Bold)
-                                Text("${b.bannerType.uppercase()} • ${if (b.active) "Active" else "Off"} • Sort ${b.sortOrder}", style = MaterialTheme.typography.bodySmall)
+                                Text("${b.bannerType.uppercase()} • ${if (b.active) "Active" else "Off"} • Sort ${b.sortOrder} • ${b.widthPercent}% × ${b.heightPx}px", style = MaterialTheme.typography.bodySmall)
                             }
                             TextButton(onClick = { selected = b; showEditor = true }) { Text("এডিট") }
                             TextButton(onClick = {
@@ -1448,13 +1448,13 @@ private fun Banners() {
     }
 
     if (showEditor) {
-        BannerEditorDialog(initial = selected, onDismiss = { showEditor = false }) { bannerType, title, altText, imageUrl, linkUrl, sortOrder, active ->
+        BannerEditorDialog(initial = selected, onDismiss = { showEditor = false }) { bannerType, title, altText, imageUrl, linkUrl, sortOrder, active, widthPercent, heightPx ->
             scope.launch {
                 val repo = Repository()
                 val result = if (selected == null) {
-                    repo.addBanner(bannerType, title, altText, imageUrl, linkUrl, sortOrder)
+                    repo.addBanner(bannerType, title, altText, imageUrl, linkUrl, sortOrder, widthPercent, heightPx)
                 } else {
-                    repo.updateBanner(selected!!.copy(bannerType = bannerType, title = title, altText = altText, imageUrl = imageUrl, linkUrl = linkUrl, sortOrder = sortOrder, active = active))
+                    repo.updateBanner(selected!!.copy(bannerType = bannerType, title = title, altText = altText, imageUrl = imageUrl, linkUrl = linkUrl, sortOrder = sortOrder, active = active, widthPercent = widthPercent, heightPx = heightPx))
                 }
                 result.fold({ showEditor = false; refresh++ }, { error = it.message })
             }
@@ -1466,7 +1466,7 @@ private fun Banners() {
 private fun BannerEditorDialog(
     initial: SiteBanner?,
     onDismiss: () -> Unit,
-    onSave: (String, String?, String, String, String?, Int, Boolean) -> Unit
+    onSave: (String, String?, String, String, String?, Int, Boolean, Int, Int) -> Unit
 ) {
     val context = LocalContext.current
     var type by remember { mutableStateOf(initial?.bannerType ?: "hero") }
@@ -1476,6 +1476,8 @@ private fun BannerEditorDialog(
     var link by remember { mutableStateOf(initial?.linkUrl ?: "") }
     var sort by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
     var active by remember { mutableStateOf(initial?.active ?: true) }
+    var widthPercent by remember { mutableFloatStateOf((initial?.widthPercent ?: 100).coerceIn(50, 100).toFloat()) }
+    var heightPx by remember { mutableFloatStateOf((initial?.heightPx ?: 180).coerceIn(120, 500).toFloat()) }
     var uploading by remember { mutableStateOf(false) }
     val uploadScope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -1509,12 +1511,27 @@ private fun BannerEditorDialog(
                 if (imageUrl.isNotBlank()) AsyncImage(model = imageUrl, contentDescription = alt, modifier = Modifier.fillMaxWidth().heightIn(max = 160.dp))
                 Field(link, { link = it }, "Link URL (optional)")
                 Field(sort, { sort = it }, "Sort order", KeyboardType.Number)
+                Text("Banner width: ${widthPercent.toInt()}%", fontWeight = FontWeight.SemiBold)
+                Slider(
+                    value = widthPercent,
+                    onValueChange = { widthPercent = it },
+                    valueRange = 50f..100f,
+                    steps = 9
+                )
+                Text("Banner height: ${heightPx.toInt()} px", fontWeight = FontWeight.SemiBold)
+                Slider(
+                    value = heightPx,
+                    onValueChange = { heightPx = it },
+                    valueRange = 120f..500f,
+                    steps = 18
+                )
+                Text("টেনে ছোট/বড় করে banner-এর size ঠিক করুন", style = MaterialTheme.typography.bodySmall)
                 SwitchRow("Active", active) { active = it }
             }
         },
         confirmButton = {
             TextButton(enabled = imageUrl.isNotBlank() && sort.toIntOrNull() != null && !uploading, onClick = {
-                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active)
+                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active, widthPercent.toInt(), heightPx.toInt())
             }) { Text("সেভ") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }

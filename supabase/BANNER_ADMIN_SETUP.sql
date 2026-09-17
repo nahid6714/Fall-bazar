@@ -23,3 +23,17 @@ create policy "Admins can manage banners" on public.site_banners for all to auth
 grant select on public.site_banners to anon, authenticated;
 grant insert, update, delete on public.site_banners to authenticated;
 notify pgrst, 'reload schema';
+
+-- Banner display size controls (used by Admin App and Website)
+alter table public.site_banners
+  add column if not exists width_percent integer not null default 100,
+  add column if not exists height_px integer not null default 180;
+
+alter table public.site_banners
+  drop constraint if exists site_banners_width_percent_check;
+alter table public.site_banners
+  add constraint site_banners_width_percent_check check (width_percent between 50 and 100);
+alter table public.site_banners
+  drop constraint if exists site_banners_height_px_check;
+alter table public.site_banners
+  add constraint site_banners_height_px_check check (height_px between 120 and 500);
