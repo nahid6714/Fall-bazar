@@ -114,17 +114,3 @@ data class Coupon(
     val startsAt: String? = null,
     val expiresAt: String? = null
 )
-
-data class SiteBanner(
-    val id: String,
-    val bannerType: String = "hero",
-    val title: String? = null,
-    val altText: String = "ফল বাজার ব্যানার",
-    val imageUrl: String,
-    val linkUrl: String? = null,
-    val sortOrder: Int = 0,
-    val active: Boolean = true,
-    val createdAt: String? = null,
-    val updatedAt: String? = null
-)
-
