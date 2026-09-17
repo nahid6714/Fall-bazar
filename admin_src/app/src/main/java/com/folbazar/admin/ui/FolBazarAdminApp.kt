@@ -1565,7 +1565,7 @@ private fun Banners() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(b.title?.ifBlank { null } ?: "ব্যানার", fontWeight = FontWeight.Bold)
-                                Text("${b.bannerType.uppercase()} • ${if (b.active) "Active" else "Off"} • Sort ${b.sortOrder} • ${b.widthPercent}% × ${b.heightPx}px", style = MaterialTheme.typography.bodySmall)
+                                Text("${b.bannerType.uppercase()} • ${if (b.active) "Active" else "Off"} • Sort ${b.sortOrder}", style = MaterialTheme.typography.bodySmall)
                             }
                             TextButton(onClick = { selected = b; showEditor = true }) { Text("এডিট") }
                             TextButton(onClick = {
@@ -1579,25 +1579,27 @@ private fun Banners() {
     }
 
     if (showEditor) {
-        BannerEditorDialog(initial = selected, onDismiss = { showEditor = false }) { bannerType, title, altText, imageUrl, linkUrl, sortOrder, active, widthPercent, heightPx ->
+        BannerEditorDialog(initial = selected, onDismiss = { showEditor = false }) { bannerType, title, altText, imageUrl, linkUrl, sortOrder, active ->
             scope.launch {
                 val repo = Repository()
                 val result = if (selected == null) {
-                    repo.addBanner(bannerType, title, altText, imageUrl, linkUrl, sortOrder, widthPercent, heightPx)
+                    repo.addBanner(bannerType, title, altText, imageUrl, linkUrl, sortOrder)
                 } else {
-                    repo.updateBanner(selected!!.copy(bannerType = bannerType, title = title, altText = altText, imageUrl = imageUrl, linkUrl = linkUrl, sortOrder = sortOrder, active = active, widthPercent = widthPercent, heightPx = heightPx))
+                    // Keep existing stored banner dimensions untouched.
+                    repo.updateBanner(selected!!.copy(bannerType = bannerType, title = title, altText = altText, imageUrl = imageUrl, linkUrl = linkUrl, sortOrder = sortOrder, active = active))
                 }
                 result.fold({ showEditor = false; refresh++ }, { error = it.message })
             }
         }
     }
+
 }
 
 @Composable
 private fun BannerEditorDialog(
     initial: SiteBanner?,
     onDismiss: () -> Unit,
-    onSave: (String, String?, String, String, String?, Int, Boolean, Int, Int) -> Unit
+    onSave: (String, String?, String, String, String?, Int, Boolean) -> Unit
 ) {
     val context = LocalContext.current
     var type by remember { mutableStateOf(initial?.bannerType ?: "hero") }
@@ -1607,13 +1609,9 @@ private fun BannerEditorDialog(
     var link by remember { mutableStateOf(initial?.linkUrl ?: "") }
     var sort by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
     var active by remember { mutableStateOf(initial?.active ?: true) }
-    // The live mobile website currently uses a fixed hero viewport and crops artwork.
-    // Keep this preview independent from heightPx so it mirrors the live crop.
-    val defaultWidthPercent = 100f
-    val defaultHeightPx = 250f
+    // The live mobile website uses the normal/default banner frame.
+    // No width/height controls are exposed in the Admin editor.
     val livePreviewHeight = 250.dp
-    var widthPercent by remember { mutableFloatStateOf((initial?.widthPercent ?: defaultWidthPercent.toInt()).coerceIn(50, 100).toFloat()) }
-    var heightPx by remember { mutableFloatStateOf((initial?.heightPx ?: defaultHeightPx.toInt()).coerceIn(120, 500).toFloat()) }
     var uploading by remember { mutableStateOf(false) }
     val uploadScope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -1692,20 +1690,8 @@ private fun BannerEditorDialog(
                                 Text("ছবি মুছুন")
                             }
                         }
-                        Text("Width setting: ${widthPercent.toInt()}%", fontWeight = FontWeight.SemiBold)
-                        Slider(value = widthPercent, onValueChange = { widthPercent = it }, valueRange = 50f..100f, steps = 9)
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Height value: ${heightPx.toInt()} px", fontWeight = FontWeight.SemiBold)
-                                Slider(value = heightPx, onValueChange = { heightPx = it }, valueRange = 120f..500f, steps = 18)
-                            }
-                            TextButton(onClick = {
-                                widthPercent = defaultWidthPercent
-                                heightPx = defaultHeightPx
-                            }) { Text("ডিফল্ট") }
-                        }
                         Text(
-                            "নোট: Preview live Website-এর বর্তমান fixed 250px crop behavior অনুসরণ করে। তাই 120/180px value দিলেও Preview-এর frame 250px-ই থাকবে।",
+                            "ছবিটি Website-এর বর্তমান 250px banner frame-এর মতোই crop হয়ে Preview-তে দেখা যাবে। Width/Height পরিবর্তনের কোনো অপশন নেই।",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
@@ -1717,7 +1703,7 @@ private fun BannerEditorDialog(
         },
         confirmButton = {
             TextButton(enabled = imageUrl.isNotBlank() && sort.toIntOrNull() != null && !uploading, onClick = {
-                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active, widthPercent.toInt(), heightPx.toInt())
+                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active)
             }) { Text("সেভ") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }

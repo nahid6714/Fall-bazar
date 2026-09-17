@@ -1,7 +1,9 @@
-# Fol Bazar Admin v39 — Live Website Banner Preview
+# Fol Bazar Admin — Banner Image Editor
 
-- Banner list thumbnails use the same 250px clipped/cropped viewport as the current live mobile hero renderer.
-- Banner editor preview uses a fixed 250px viewport and `ContentScale.Crop`, matching the current live website behavior.
-- Existing Supabase `width_percent` and `height_px` fields are preserved and still saved.
-- Website source is not modified by this package.
-- Note: the current website renderer uses a fixed mobile hero viewport, so changing `height_px` in Admin does not change the live website until the website renderer is intentionally changed.
+- Width/Height editing controls have been removed from the Banner Editor.
+- Admin keeps the normal/default banner frame for preview.
+- Preview uses crop behavior matching the existing website frame.
+- Admin can change the banner image and save it without changing stored banner dimensions.
+- Existing Supabase `width_percent` and `height_px` values are preserved.
+- New banners rely on the database's normal/default dimension values.
+- Website source files are not changed by this Admin-only update.

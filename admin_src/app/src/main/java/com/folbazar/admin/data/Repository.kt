@@ -140,10 +140,10 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         array(api.get("site_banners", "?select=*&order=banner_type.asc,sort_order.asc,created_at.desc")).map { parseBanner(it.jsonObject) }
     }}
 
-    suspend fun addBanner(bannerType: String, title: String?, altText: String, imageUrl: String, linkUrl: String?, sortOrder: Int, widthPercent: Int, heightPx: Int): Result<SiteBanner> = runCatching { withContext(Dispatchers.IO) {
+    suspend fun addBanner(bannerType: String, title: String?, altText: String, imageUrl: String, linkUrl: String?, sortOrder: Int): Result<SiteBanner> = runCatching { withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             put("banner_type", bannerType); put("title", title); put("alt_text", altText.ifBlank { "ফল বাজার ব্যানার" });
-            put("image_url", imageUrl); put("link_url", linkUrl); put("sort_order", sortOrder); put("is_active", true); put("width_percent", widthPercent); put("height_px", heightPx)
+            put("image_url", imageUrl); put("link_url", linkUrl); put("sort_order", sortOrder); put("is_active", true)
         }
         parseBanner(array(api.post("site_banners", body.toString())).first().jsonObject)
     }}
@@ -151,7 +151,7 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     suspend fun updateBanner(b: SiteBanner): Result<SiteBanner> = runCatching { withContext(Dispatchers.IO) {
         val body = buildJsonObject {
             put("banner_type", b.bannerType); put("title", b.title); put("alt_text", b.altText); put("image_url", b.imageUrl);
-            put("link_url", b.linkUrl); put("sort_order", b.sortOrder); put("is_active", b.active); put("width_percent", b.widthPercent); put("height_px", b.heightPx)
+            put("link_url", b.linkUrl); put("sort_order", b.sortOrder); put("is_active", b.active)
         }
         parseBanner(array(api.patch("site_banners", "id=eq.${b.id}", body.toString())).first().jsonObject)
     }}
