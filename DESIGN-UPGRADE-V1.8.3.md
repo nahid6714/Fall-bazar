@@ -10,3 +10,7 @@ Implemented in the desktop React/Vite admin console:
 - Branded login card with password Show/Hide toggle
 - Improved buttons, forms, tables, modals, focus states, shadows and responsive layouts
 - Existing Supabase, CRUD, Cloudinary, order and settings workflows retained
+
+## Reference-style mobile dashboard
+
+The responsive mobile dashboard was redesigned to follow the supplied reference images: compact branded header, dark sales summary card, 2x2 performance cards, two-column admin module cards, and a fixed four-item bottom navigation. Desktop layout remains available above the mobile breakpoint.
