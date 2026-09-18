@@ -32,3 +32,32 @@
   /* All inner CRUD/settings pages stay functional but use compact mobile surfaces. */
   .toolbar{padding-top:10px;margin-bottom:14px}.toolbar h2{font-size:20px}.panel.tablewrap{border-radius:14px}.tablewrap{overflow:auto}.dashboard-top,.metric-grid,.dashboard-grid{display:none}.settings-grid{display:block}.settings{max-width:none;padding:15px}.settings-grid>.panel+ .panel{margin-top:12px}.search input{width:140px}.actions{width:100%}
 }
+
+/* Final mobile UX cleanup: no giant image preview, no edit modal overlay */
+.image-upload-field{grid-column:1/-1;border:1px solid #E5E7EB;border-radius:14px;padding:15px;background:#fff}
+.image-upload-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
+.image-upload-head>div{display:flex;flex-direction:column;gap:4px}
+.image-upload-head b{font-size:13px;color:#111827}
+.image-upload-head span{font-size:10px;color:#6B7280}
+.image-url-input{width:100%;padding:11px 12px;border:1px solid #D1D5DB;border-radius:10px;outline:0;margin-bottom:9px}
+.upload-btn{position:relative;width:max-content;max-width:100%;display:inline-flex;align-items:center;gap:7px;padding:10px 14px;border:1px solid #D1D5DB;border-radius:10px;background:#fff;color:#374151;font-size:12px;font-weight:600;cursor:pointer;overflow:hidden}
+.upload-btn:hover{border-color:#DF2D4D;color:#DF2D4D;background:#FFF7F8}
+.upload-btn input{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;opacity:0!important;cursor:pointer;padding:0!important;border:0!important}
+.image-url-status{margin-top:9px;font-size:10px;color:#059669}
+.editor-page{min-height:calc(100vh - 78px);padding:28px;background:#F9FAFB}
+.editor-card{width:min(980px,100%);margin:0 auto;background:#fff;border:1px solid #E5E7EB;border-radius:18px;box-shadow:0 10px 30px rgba(17,24,39,.06);overflow:hidden}
+.editor-card.small{max-width:620px}
+.editor-card .modalhead{padding:20px 24px}
+.editor-card .modalhead h3{margin:4px 0 0;font-size:20px}
+.editor-card .formgrid{padding:24px}
+.editor-card .modalfoot{padding:16px 24px;background:#FAFAFA}
+@media(max-width:600px){
+  .editor-page{padding:12px;min-height:calc(100vh - 70px)}
+  .editor-card{border-radius:14px}
+  .editor-card .modalhead{padding:16px}
+  .editor-card .modalhead h3{font-size:18px}
+  .editor-card .formgrid{padding:16px}
+  .editor-card .modalfoot{padding:13px 16px}
+  .image-upload-field{padding:13px}
+  .upload-btn{width:100%;justify-content:center}
+}
