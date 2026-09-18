@@ -2103,19 +2103,19 @@ private fun SettingsScreen(onLogout: () -> Unit) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
                             selected = themeMode == ThemePrefs.Mode.SYSTEM,
-                            onClick = { ThemePrefs.setMode(ThemePrefs.Mode.SYSTEM); themeMode = ThemePrefs.Mode.SYSTEM },
+                            onClick = { ThemePrefs.updateMode(ThemePrefs.Mode.SYSTEM); themeMode = ThemePrefs.Mode.SYSTEM },
                             label = { Text("Device") },
                             leadingIcon = { Icon(Icons.Default.PhoneAndroid, null) }
                         )
                         FilterChip(
                             selected = themeMode == ThemePrefs.Mode.LIGHT,
-                            onClick = { ThemePrefs.setMode(ThemePrefs.Mode.LIGHT); themeMode = ThemePrefs.Mode.LIGHT },
+                            onClick = { ThemePrefs.updateMode(ThemePrefs.Mode.LIGHT); themeMode = ThemePrefs.Mode.LIGHT },
                             label = { Text("Light") },
                             leadingIcon = { Icon(Icons.Default.LightMode, null) }
                         )
                         FilterChip(
                             selected = themeMode == ThemePrefs.Mode.DARK,
-                            onClick = { ThemePrefs.setMode(ThemePrefs.Mode.DARK); themeMode = ThemePrefs.Mode.DARK },
+                            onClick = { ThemePrefs.updateMode(ThemePrefs.Mode.DARK); themeMode = ThemePrefs.Mode.DARK },
                             label = { Text("Dark") },
                             leadingIcon = { Icon(Icons.Default.DarkMode, null) }
                         )

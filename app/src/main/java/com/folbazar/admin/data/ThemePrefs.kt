@@ -24,7 +24,7 @@ object ThemePrefs {
         mode = runCatching { Mode.valueOf(saved ?: Mode.SYSTEM.name) }.getOrDefault(Mode.SYSTEM)
     }
 
-    fun setMode(newMode: Mode) {
+    fun updateMode(newMode: Mode) {
         mode = newMode
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit { putString(KEY_MODE, newMode.name) }
     }
