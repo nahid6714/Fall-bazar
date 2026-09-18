@@ -75,3 +75,13 @@
  .overlay .modalhead{padding:16px}
  .image-preview-box{height:190px;max-width:100%}
 }
+
+/* FINAL: no preview/modal presentation. Every detail screen is a normal page. */
+.overlay{position:static!important;inset:auto!important;min-height:calc(100vh - 78px)!important;background:transparent!important;backdrop-filter:none!important;display:block!important;padding:28px!important;z-index:auto!important}
+.overlay .modal{width:min(1000px,100%)!important;max-height:none!important;overflow:visible!important;margin:0 auto!important;border-radius:18px!important;box-shadow:0 10px 30px rgba(17,24,39,.06)!important}
+.page-screen{min-height:calc(100vh - 78px);padding:28px;background:#F9FAFB}
+.page-card{width:min(1000px,100%);margin:0 auto;background:#fff;border:1px solid #E5E7EB;border-radius:18px;box-shadow:0 10px 30px rgba(17,24,39,.06);overflow:hidden}
+@media(max-width:600px){
+ .page-screen{min-height:calc(100vh - 70px);padding:12px}
+ .page-card{border-radius:14px}
+}
