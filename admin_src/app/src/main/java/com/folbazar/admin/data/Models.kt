@@ -115,18 +115,6 @@ data class Coupon(
     val expiresAt: String? = null
 )
 
-data class OrderItem(
-    val id: String,
-    val orderId: String,
-    val productId: String? = null,
-    val productName: String,
-    val variantLabel: String? = null,
-    val weightGrams: Int? = null,
-    val unitPrice: Double,
-    val quantity: Int,
-    val lineTotal: Double
-)
-
 data class SiteBanner(
     val id: String,
     val bannerType: String = "hero",
@@ -137,7 +125,7 @@ data class SiteBanner(
     val sortOrder: Int = 0,
     val active: Boolean = true,
     val widthPercent: Int = 100,
-    val heightPx: Int = 180,
+    val heightPx: Int = 250,
     val createdAt: String? = null,
     val updatedAt: String? = null
 )

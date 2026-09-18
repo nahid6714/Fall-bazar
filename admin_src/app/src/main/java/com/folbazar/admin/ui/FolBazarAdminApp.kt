@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clip
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -31,7 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavHostController
@@ -62,18 +63,12 @@ fun FolBazarAdminApp() {
     )
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("ফল বাজার Admin", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
+            TopAppBar(title = { Text("ফল বাজার Admin", fontWeight = FontWeight.Bold) })
         },
         bottomBar = {
-            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+            NavigationBar {
                 val current = nav.currentBackStackEntryAsState().value?.destination?.route
-                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist","banners","settings")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }, colors = NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary, indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
+                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist","banners","settings")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }) }
             }
         }
     ) { padding ->
@@ -624,7 +619,7 @@ private fun ProductDialog(
                                     contentDescription = "Product image",
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small)
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
                                         .combinedClickable(
                                             onClick = { image = url },
                                             onLongClick = { copyImageLink(context, url) }
@@ -812,6 +807,8 @@ private fun ProductDialog(
 }
 
 
+private val AdminControlButtonShape = RoundedCornerShape(10.dp)
+
 @Composable
 private fun AdminImageControl(
     imageUrl: String,
@@ -849,7 +846,7 @@ private fun AdminImageControl(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(height)
-                .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.medium)
+                .border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(4.dp))
                 .padding(6.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -867,11 +864,12 @@ private fun AdminImageControl(
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 onClick = { picker.launch("image/*") },
-                modifier = Modifier.weight(1f),
-                enabled = !uploading
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !uploading,
+                shape = AdminControlButtonShape
             ) {
                 Icon(Icons.Default.AddPhotoAlternate, null)
                 Spacer(Modifier.width(5.dp))
@@ -879,8 +877,9 @@ private fun AdminImageControl(
             }
             OutlinedButton(
                 onClick = { onImageUrlChange("") },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 enabled = imageUrl.isNotBlank() && !uploading,
+                shape = AdminControlButtonShape,
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
             ) {
                 Icon(Icons.Default.Delete, null)
@@ -902,7 +901,6 @@ private fun CategoryEditorDialog(
     onDismiss: () -> Unit,
     onSave: (String, String?, String?, Int) -> Unit
 ) {
-    val context = LocalContext.current
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var description by remember { mutableStateOf(initial?.description ?: "") }
     var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
@@ -925,7 +923,7 @@ private fun CategoryEditorDialog(
                     onImageUrlChange = { imageUrl = it },
                     label = "ক্যাটাগরির ছবি",
                     height = 150.dp,
-                    onUpload = { uri -> CloudinaryClient(context).uploadImage(uri) }
+                    onUpload = { uri -> CloudinaryClient(LocalContext.current).uploadImage(uri) }
                 )
                 Field(sortOrder, { sortOrder = it }, "Sort order", KeyboardType.Number)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -1054,14 +1052,6 @@ private fun OrderDetailsDialog(
     val context = LocalContext.current
     var status by remember { mutableStateOf(o.status) }
     var pay by remember { mutableStateOf(o.paymentStatus) }
-    var items by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
-    var itemsLoading by remember { mutableStateOf(true) }
-
-    LaunchedEffect(o.id) {
-        itemsLoading = true
-        items = Repository().orderItems(o.id).getOrDefault(emptyList())
-        itemsLoading = false
-    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1113,59 +1103,11 @@ private fun OrderDetailsDialog(
                     InfoLine("Shipping", o.shippingMethod)
                 }
 
-                OrderSection("পণ্য তালিকা") {
-                    when {
-                        itemsLoading -> LinearProgressIndicator(Modifier.fillMaxWidth())
-                        items.isEmpty() -> Text("পণ্যের বিস্তারিত পাওয়া যায়নি", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        else -> items.forEach { it2 ->
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(it2.productName + (it2.variantLabel?.takeIf { v -> v.isNotBlank() }?.let { v -> " ($v)" } ?: ""), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
-                                    Text("${it2.quantity} × ৳${money(it2.unitPrice)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Text("৳ ${money(it2.lineTotal)}", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-
                 OrderSection("মূল্য") {
                     InfoLine("Subtotal", "৳ ${money(o.subtotal)}")
                     InfoLine("Delivery", "৳ ${money(o.deliveryCharge)}")
                     InfoLine("Discount", "৳ ${money(o.discount)}")
                     InfoLine("Total", "৳ ${money(o.total)}", bold = true)
-                }
-
-                OrderSection("রশিদ ডাউনলোড") {
-                    Text("অর্ডার রশিদ ছবি বা PDF আকারে সেভ/শেয়ার করুন", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                val bmp = OrderReceiptExporter.renderBitmap(o, items)
-                                val file = OrderReceiptExporter.saveImage(context, bmp, o.orderNumber)
-                                OrderReceiptExporter.shareFile(context, file, "image/png")
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = !itemsLoading
-                        ) {
-                            Icon(Icons.Default.Image, null)
-                            Spacer(Modifier.width(5.dp))
-                            Text("ছবি ডাউনলোড")
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                val doc = OrderReceiptExporter.renderPdf(o, items)
-                                val file = OrderReceiptExporter.savePdf(context, doc, o.orderNumber)
-                                OrderReceiptExporter.shareFile(context, file, "application/pdf")
-                            },
-                            modifier = Modifier.weight(1f),
-                            enabled = !itemsLoading
-                        ) {
-                            Icon(Icons.Default.PictureAsPdf, null)
-                            Spacer(Modifier.width(5.dp))
-                            Text("PDF ডাউনলোড")
-                        }
-                    }
                 }
 
                 OrderSection("পেমেন্ট") {
@@ -1616,7 +1558,15 @@ private fun Banners() {
             items(list, key = { it.id }) { b ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AsyncImage(model = b.imageUrl, contentDescription = b.altText, modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 190.dp))
+                        Box(Modifier.fillMaxWidth().height(250.dp).clip(RoundedCornerShape(4.dp)), contentAlignment = Alignment.Center) {
+                            AsyncImage(
+                                model = b.imageUrl,
+                                contentDescription = b.altText,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit,
+                                alignment = Alignment.Center
+                            )
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(b.title?.ifBlank { null } ?: "ব্যানার", fontWeight = FontWeight.Bold)
@@ -1634,25 +1584,27 @@ private fun Banners() {
     }
 
     if (showEditor) {
-        BannerEditorDialog(initial = selected, onDismiss = { showEditor = false }) { bannerType, title, altText, imageUrl, linkUrl, sortOrder, active, widthPercent, heightPx ->
+        BannerEditorDialog(initial = selected, onDismiss = { showEditor = false }) { bannerType, title, altText, imageUrl, linkUrl, sortOrder, active ->
             scope.launch {
                 val repo = Repository()
                 val result = if (selected == null) {
-                    repo.addBanner(bannerType, title, altText, imageUrl, linkUrl, sortOrder, widthPercent, heightPx)
+                    repo.addBanner(bannerType, title, altText, imageUrl, linkUrl, sortOrder)
                 } else {
-                    repo.updateBanner(selected!!.copy(bannerType = bannerType, title = title, altText = altText, imageUrl = imageUrl, linkUrl = linkUrl, sortOrder = sortOrder, active = active, widthPercent = widthPercent, heightPx = heightPx))
+                    // Keep existing stored banner dimensions untouched.
+                    repo.updateBanner(selected!!.copy(bannerType = bannerType, title = title, altText = altText, imageUrl = imageUrl, linkUrl = linkUrl, sortOrder = sortOrder, active = active))
                 }
                 result.fold({ showEditor = false; refresh++ }, { error = it.message })
             }
         }
     }
+
 }
 
 @Composable
 private fun BannerEditorDialog(
     initial: SiteBanner?,
     onDismiss: () -> Unit,
-    onSave: (String, String?, String, String, String?, Int, Boolean, Int, Int) -> Unit
+    onSave: (String, String?, String, String, String?, Int, Boolean) -> Unit
 ) {
     val context = LocalContext.current
     var type by remember { mutableStateOf(initial?.bannerType ?: "hero") }
@@ -1662,10 +1614,9 @@ private fun BannerEditorDialog(
     var link by remember { mutableStateOf(initial?.linkUrl ?: "") }
     var sort by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
     var active by remember { mutableStateOf(initial?.active ?: true) }
-    // Website ব্যানার সবসময় ফ্রেমের পুরো জায়গা নেয় (responsive), তাই ম্যানুয়াল width/height
-    // নিয়ন্ত্রণের কোনো প্রয়োজন নেই — একটা স্থির ডিফল্ট মান পাঠানো হয় ব্যাকওয়ার্ড কম্প্যাটিবিলিটির জন্য।
-    val widthPercent = 100
-    val heightPx = initial?.heightPx ?: 180
+    // The live mobile website uses the normal/default banner frame.
+    // No width/height controls are exposed in the Admin editor.
+    val livePreviewHeight = 250.dp
     var uploading by remember { mutableStateOf(false) }
     val uploadScope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -1696,26 +1647,30 @@ private fun BannerEditorDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(2.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.large)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp))
                         .padding(8.dp)
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("ব্যানার প্রিভিউ", fontWeight = FontWeight.Bold)
-                        Text("Website-এ ব্যানার সবসময় নির্ধারিত ফ্রেমের পুরো জায়গা জুড়ে responsive-ভাবে বসে; size আলাদাভাবে ঠিক করার প্রয়োজন নেই।", style = MaterialTheme.typography.bodySmall)
+                        Text("Live Website Preview", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Website-এ বর্তমানে যে frame ও crop দেখা যায়, Preview-তেও ঠিক সেটাই দেখানো হবে।",
+                            style = MaterialTheme.typography.bodySmall
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 140.dp, max = 190.dp)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.medium)
-                                .padding(4.dp),
+                                .height(livePreviewHeight)
+                                .clip(RoundedCornerShape(4.dp))
+                                .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(4.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (imageUrl.isNotBlank()) {
                                 AsyncImage(
                                     model = imageUrl,
                                     contentDescription = alt,
-                                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                                    contentScale = ContentScale.Fit
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Fit,
+                                    alignment = Alignment.Center
                                 )
                             } else {
                                 Text("ছবির Live Preview", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1728,16 +1683,28 @@ private fun BannerEditorDialog(
                             label = { Text("Image URL") },
                             singleLine = true
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.weight(1f), enabled = !uploading) {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { picker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !uploading, shape = AdminControlButtonShape) {
                                 Icon(Icons.Default.AddPhotoAlternate, null)
                                 Spacer(Modifier.width(4.dp))
-                                Text(if (uploading) "আপলোড…" else "ছবি নির্বাচন")
+                                Text(if (uploading) "আপলোড…" else "ছবি নির্বাচন / আপলোড")
                             }
-                            OutlinedButton(onClick = { imageUrl = "" }, modifier = Modifier.weight(1f), enabled = imageUrl.isNotBlank() && !uploading, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                            OutlinedButton(onClick = { imageUrl = "" }, modifier = Modifier.fillMaxWidth(), enabled = imageUrl.isNotBlank() && !uploading, shape = AdminControlButtonShape, colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                                 Icon(Icons.Default.Delete, null)
                                 Spacer(Modifier.width(4.dp))
                                 Text("ছবি মুছুন")
+                            }
+                        }
+                        Text(
+                            "Website-এর normal content width অনুযায়ী banner responsive হবে। Width/Height আলাদা করে পরিবর্তনের কোনো অপশন নেই।",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("প্রস্তাবিত ব্যানার সাইজ", fontWeight = FontWeight.Bold)
+                                Text("Hero: 1600 × 600 px", style = MaterialTheme.typography.bodySmall)
+                                Text("Promo: 1600 × 350 px", style = MaterialTheme.typography.bodySmall)
+                                Text("Width/Height Admin থেকে পরিবর্তন করা যাবে না; Website নিজে responsive ভাবে size নেবে।", style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -1749,7 +1716,7 @@ private fun BannerEditorDialog(
         },
         confirmButton = {
             TextButton(enabled = imageUrl.isNotBlank() && sort.toIntOrNull() != null && !uploading, onClick = {
-                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active, widthPercent.toInt(), heightPx.toInt())
+                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active)
             }) { Text("সেভ") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }
@@ -2091,35 +2058,6 @@ private fun SettingsScreen(onLogout: () -> Unit) {
                     Text("3. ডাউনলোডে চাপলে অগ্রগতি (%) দেখা যাবে।")
                     Text("4. ডাউনলোড শেষ হলে এখানেই Install বাটন আসবে।")
                     Text("5. Android-এর নিরাপত্তার কারণে প্রথমবার এই অ্যাপের জন্য 'Install unknown apps' অনুমতি লাগতে পারে।")
-                }
-            }
-        }
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("থিম", fontWeight = FontWeight.Bold)
-                    Text("অ্যাপের লুক Light / Dark / Device অনুযায়ী বেছে নিন", style = MaterialTheme.typography.bodySmall)
-                    var themeMode by remember { mutableStateOf(ThemePrefs.mode) }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = themeMode == ThemePrefs.Mode.SYSTEM,
-                            onClick = { ThemePrefs.setMode(ThemePrefs.Mode.SYSTEM); themeMode = ThemePrefs.Mode.SYSTEM },
-                            label = { Text("Device") },
-                            leadingIcon = { Icon(Icons.Default.PhoneAndroid, null) }
-                        )
-                        FilterChip(
-                            selected = themeMode == ThemePrefs.Mode.LIGHT,
-                            onClick = { ThemePrefs.setMode(ThemePrefs.Mode.LIGHT); themeMode = ThemePrefs.Mode.LIGHT },
-                            label = { Text("Light") },
-                            leadingIcon = { Icon(Icons.Default.LightMode, null) }
-                        )
-                        FilterChip(
-                            selected = themeMode == ThemePrefs.Mode.DARK,
-                            onClick = { ThemePrefs.setMode(ThemePrefs.Mode.DARK); themeMode = ThemePrefs.Mode.DARK },
-                            label = { Text("Dark") },
-                            leadingIcon = { Icon(Icons.Default.DarkMode, null) }
-                        )
-                    }
                 }
             }
         }
