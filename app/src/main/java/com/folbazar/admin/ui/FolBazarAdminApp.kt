@@ -280,9 +280,9 @@ private fun Products() {
             initial = null,
             cats = cats,
             onDismiss = { add = false }
-        ) { n, d, pr, op, st, ci, img, f, fl, h ->
+        ) { n, d, pr, op, st, ci, img, gal, f, fl, h ->
             scope.launch {
-                Repository().addProduct(n, d, pr, op, st, ci, img, f, fl, h).fold(
+                Repository().addProduct(n, d, pr, op, st, ci, img, gal, f, fl, h).fold(
                     { add = false; refresh++ },
                     { error = it.message }
                 )
@@ -295,12 +295,12 @@ private fun Products() {
             initial = p,
             cats = cats,
             onDismiss = { edit = null }
-        ) { n, d, pr, op, st, ci, img, f, fl, h ->
+        ) { n, d, pr, op, st, ci, img, gal, f, fl, h ->
             scope.launch {
                 Repository().updateProduct(
                     p.copy(
                         name = n, description = d, price = pr, oldPrice = op,
-                        stock = st, categoryId = ci, imageUrl = img,
+                        stock = st, categoryId = ci, imageUrl = img, galleryUrls = gal,
                         featured = f, flashSale = fl, hotDeal = h
                     )
                 ).fold(
@@ -485,7 +485,7 @@ private fun ProductDialog(
     initial: Product?,
     cats: List<Category>,
     onDismiss: () -> Unit,
-    onSave: (String, String?, Double, Double?, Int, String?, String?, Boolean, Boolean, Boolean) -> Unit
+    onSave: (String, String?, Double, Double?, Int, String?, String?, List<String>, Boolean, Boolean, Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -496,7 +496,9 @@ private fun ProductDialog(
     var stock by remember { mutableStateOf(initial?.stock?.toString() ?: "0") }
     var cat by remember { mutableStateOf(initial?.categoryId) }
     var image by remember { mutableStateOf(initial?.imageUrl) }
-    var galleryUrls by remember { mutableStateOf(listOfNotNull(initial?.imageUrl)) }
+    var galleryUrls by remember { mutableStateOf(
+        (initial?.galleryUrls?.takeIf { it.isNotEmpty() } ?: listOfNotNull(initial?.imageUrl)).distinct()
+    ) }
     var featured by remember { mutableStateOf(initial?.featured ?: false) }
     var flash by remember { mutableStateOf(initial?.flashSale ?: false) }
     var hot by remember { mutableStateOf(initial?.hotDeal ?: false) }
@@ -561,7 +563,8 @@ private fun ProductDialog(
                 old.toDoubleOrNull(),
                 stock.toIntOrNull() ?: 0,
                 cat,
-                image,
+                image ?: galleryUrls.firstOrNull(),
+                galleryUrls,
                 featured,
                 flash,
                 hot
@@ -593,27 +596,14 @@ private fun ProductDialog(
                     }
                 }
 
-                AdminImageControl(
-                    imageUrl = image ?: "",
-                    onImageUrlChange = { value ->
-                        val oldImage = image
-                        image = value.ifBlank { null }
-                        if (value.isBlank() && oldImage != null) {
-                            galleryUrls = galleryUrls.filterNot { it == oldImage }
-                        }
-                    },
-                    label = "প্রধান পণ্যের ছবি",
-                    height = 180.dp,
-                    onUpload = { uri -> CloudinaryClient(context).uploadImage(uri) }
-                )
-
+                var urlInput by remember { mutableStateOf("") }
                 Text(
-                    "অতিরিক্ত ছবি",
+                    "পণ্যের ছবি",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "একসাথে একাধিক ছবি নির্বাচন করা যাবে। ছবির উপর চেপে ধরে রাখলে URL কপি হবে।",
+                    "একটার বেশি ছবি একসাথে যোগ করা যাবে। প্রথম/main ছবি নির্বাচন করতে ছবির উপর ট্যাপ করুন, মুছতে ✕ চাপুন।",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -627,7 +617,11 @@ private fun ProductDialog(
                                     contentDescription = "Product image",
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.small)
+                                        .border(
+                                            if (url == image) 3.dp else 1.dp,
+                                            if (url == image) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            MaterialTheme.shapes.small
+                                        )
                                         .combinedClickable(
                                             onClick = { image = url },
                                             onLongClick = { copyImageLink(context, url) }
@@ -646,6 +640,32 @@ private fun ProductDialog(
                             }
                         }
                     }
+                } else {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(90.dp)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, MaterialTheme.shapes.medium),
+                        contentAlignment = Alignment.Center
+                    ) { Text("এখনও কোনো ছবি যোগ করা হয়নি", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = urlInput,
+                        onValueChange = { urlInput = it },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("Image URL") },
+                        singleLine = true
+                    )
+                    IconButton(onClick = {
+                        val u = urlInput.trim()
+                        if (u.isNotBlank() && u !in galleryUrls) {
+                            galleryUrls = galleryUrls + u
+                            if (image.isNullOrBlank()) image = u
+                        }
+                        urlInput = ""
+                    }, enabled = urlInput.isNotBlank()) { Icon(Icons.Default.Add, "যোগ") }
                 }
 
                 OutlinedButton(
@@ -655,7 +675,7 @@ private fun ProductDialog(
                 ) {
                     Icon(Icons.Default.AddPhotoAlternate, null)
                     Spacer(Modifier.width(6.dp))
-                    Text(if (uploading) "ছবি আপলোড হচ্ছে…" else "একাধিক ছবি আপলোড")
+                    Text(if (uploading) "ছবি আপলোড হচ্ছে…" else "ছবি নির্বাচন / আপলোড")
                 }
 
                 if (initial != null) {

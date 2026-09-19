@@ -17,6 +17,11 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     private fun b(o: JsonObject, vararg keys: String): Boolean? = keys.asSequence()
         .mapNotNull { o[it]?.jsonPrimitive?.booleanOrNull }
         .firstOrNull()
+    private fun sa(o: JsonObject, vararg keys: String): List<String> = keys.asSequence()
+        .mapNotNull { o[it] as? JsonArray }
+        .firstOrNull()
+        ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+        ?: emptyList()
 
     private fun parseCategory(o: JsonObject) = Category(
         id = s(o, "id") ?: "", name = s(o, "name") ?: "", slug = s(o, "slug") ?: "",
@@ -30,7 +35,7 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         description = s(o, "description"), price = d(o, "price") ?: 0.0,
         oldPrice = d(o, "old_price"), stock = i(o, "stock_quantity", "stock") ?: 0,
         soldQuantity = i(o, "sold_quantity") ?: 0, discountPercent = d(o, "discount_percent"),
-        imageUrl = s(o, "image_url", "image"), active = b(o, "is_active", "active") ?: true,
+        imageUrl = s(o, "image_url", "image"), galleryUrls = sa(o, "gallery_urls"), active = b(o, "is_active", "active") ?: true,
         featured = b(o, "is_featured") ?: false, flashSale = b(o, "is_flash_sale") ?: false,
         hotDeal = b(o, "is_hot_deal") ?: false, sortOrder = i(o, "sort_order") ?: 0
     )
@@ -182,11 +187,12 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
 
     suspend fun deleteCategory(id: String): Result<Unit> = runCatching { withContext(Dispatchers.IO) { api.delete("categories", "id=eq.$id"); Unit }}
 
-    suspend fun addProduct(name: String, description: String?, price: Double, oldPrice: Double?, stock: Int, categoryId: String?, imageUrl: String?, featured: Boolean, flash: Boolean, hot: Boolean): Result<Product> = runCatching { withContext(Dispatchers.IO) {
+    suspend fun addProduct(name: String, description: String?, price: Double, oldPrice: Double?, stock: Int, categoryId: String?, imageUrl: String?, galleryUrls: List<String>, featured: Boolean, flash: Boolean, hot: Boolean): Result<Product> = runCatching { withContext(Dispatchers.IO) {
         val slug = slug(name) + "-" + System.currentTimeMillis().toString().takeLast(6)
         val body = buildJsonObject {
             put("name", name); put("slug", slug); put("description", description); put("price", price); put("old_price", oldPrice)
             put("stock_quantity", stock); put("category_id", categoryId); put("image_url", imageUrl); put("is_active", true)
+            putJsonArray("gallery_urls") { galleryUrls.forEach { add(it) } }
             put("is_featured", featured); put("is_flash_sale", flash); put("is_hot_deal", hot)
         }
         val obj = array(api.post("products", body.toString())).first().jsonObject
@@ -197,6 +203,7 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         val body = buildJsonObject {
             put("name", p.name); put("description", p.description); put("price", p.price); put("old_price", p.oldPrice)
             put("stock_quantity", p.stock); put("category_id", p.categoryId); put("image_url", p.imageUrl); put("is_active", p.active)
+            putJsonArray("gallery_urls") { p.galleryUrls.forEach { add(it) } }
             put("is_featured", p.featured); put("is_flash_sale", p.flashSale); put("is_hot_deal", p.hotDeal); put("sort_order", p.sortOrder)
         }
         parseProduct(array(api.patch("products", "id=eq.${p.id}", body.toString())).first().jsonObject)

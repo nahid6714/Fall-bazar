@@ -23,8 +23,8 @@ data class Product(
     val soldQuantity: Int = 0,
     val discountPercent: Double? = null,
     val imageUrl: String? = null,
+    val galleryUrls: List<String> = emptyList(),
     val active: Boolean = true,
-    val featured: Boolean = false,
     val flashSale: Boolean = false,
     val hotDeal: Boolean = false,
     val sortOrder: Int = 0
