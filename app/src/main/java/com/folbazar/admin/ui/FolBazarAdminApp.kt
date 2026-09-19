@@ -34,6 +34,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import coil.compose.AsyncImage
@@ -352,16 +354,17 @@ private fun VariantManagerDialog(product: Product, onDismiss: () -> Unit) {
         loading = false
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("সাইজ / ভ্যারিয়েন্ট — ${product.name}") },
-        text = {
-            Column(Modifier.heightIn(max=520.dp).verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                Text("ওয়েবসাইটে যে ৫০০ গ্রাম, ১ কেজি ইত্যাদি দেখাবে—এখান থেকেই যোগ/এডিট/ডিলিট করুন.", style=MaterialTheme.typography.bodySmall)
-                FilledTonalButton(onClick={add=true}, modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.Add,null); Spacer(Modifier.width(5.dp)); Text("নতুন সাইজ / ভ্যারিয়েন্ট") }
+    FullScreenEditorPage(
+        onDismiss = onDismiss,
+        title = "সাইজ / ভ্যারিয়েন্ট — ${product.name}",
+        confirmText = "বন্ধ",
+        onConfirm = onDismiss
+    ) {
+                Text("ওয়েবসাইটে যে ৫০০ গ্রাম, ১ কেজি ইত্যাদি দেখাবে—এখান থেকেই যোগ/এডিট/ডিলিট করুন.", style=MaterialTheme.typography.bodySmall)
+                FilledTonalButton(onClick={add=true}, modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.Add,null); Spacer(Modifier.width(5.dp)); Text("নতুন সাইজ / ভ্যারিয়েন্ট") }
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                error?.let { Text("ডাটা লোড হয়নি: $it", color=MaterialTheme.colorScheme.error) }
-                if (!loading && variants.isEmpty()) Text("এখনও কোনো সাইজ/ভ্যারিয়েন্ট যোগ করা হয়নি.", color=MaterialTheme.colorScheme.onSurfaceVariant)
+                error?.let { Text("ডাটা লোড হয়নি: $it", color=MaterialTheme.colorScheme.error) }
+                if (!loading && variants.isEmpty()) Text("এখনও কোনো সাইজ/ভ্যারিয়েন্ট যোগ করা হয়নি.", color=MaterialTheme.colorScheme.onSurfaceVariant)
                 variants.forEach { v ->
                     Card(Modifier.fillMaxWidth()) {
                         Row(Modifier.padding(10.dp), verticalAlignment=Alignment.CenterVertically) {
@@ -375,10 +378,7 @@ private fun VariantManagerDialog(product: Product, onDismiss: () -> Unit) {
                         }
                     }
                 }
-            }
-        },
-        confirmButton={ TextButton(onClick=onDismiss) { Text("বন্ধ") } }
-    )
+    }
 
     if (add) VariantEditorDialog(null, onDismiss={add=false}, onSave={label,grams,price,oldPrice,stock,active,sortOrder ->
         scope.launch { Repository().addVariant(product.id,label,grams,price,oldPrice,stock,sortOrder).fold({add=false;refresh++},{error=it.message}) }
@@ -402,10 +402,12 @@ private fun VariantEditorDialog(initial: ProductVariant?, onDismiss: () -> Unit,
     var active by remember { mutableStateOf(initial?.active ?: true) }
     val parsedPrice = price.toDoubleOrNull()
     val parsedGrams = grams.toIntOrNull()
-    AlertDialog(
-        onDismissRequest=onDismiss,
-        title={Text(if(initial==null) "নতুন সাইজ / ভ্যারিয়েন্ট" else "সাইজ / ভ্যারিয়েন্ট এডিট")},
-        text={Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement=Arrangement.spacedBy(8.dp)) {
+    FullScreenEditorPage(
+        onDismiss=onDismiss,
+        title=if(initial==null) "নতুন সাইজ / ভ্যারিয়েন্ট" else "সাইজ / ভ্যারিয়েন্ট এডিট",
+        confirmEnabled=label.isNotBlank() && parsedGrams!=null && parsedGrams>0 && parsedPrice!=null && parsedPrice>=0,
+        onConfirm={onSave(label.trim(),parsedGrams?:0,parsedPrice?:0.0,oldPrice.toDoubleOrNull(),stock.toIntOrNull()?:0,active,sortOrder.toIntOrNull()?:0)}
+    ) {
             Field(label,{label=it},"লেবেল (যেমন ৫০০ গ্রাম / ১ কেজি)")
             Field(grams,{grams=it},"ওজন (গ্রাম)",KeyboardType.Number)
             Field(price,{price=it},"দাম (৳)",KeyboardType.Decimal)
@@ -413,10 +415,7 @@ private fun VariantEditorDialog(initial: ProductVariant?, onDismiss: () -> Unit,
             Field(stock,{stock=it},"স্টক",KeyboardType.Number)
             Field(sortOrder,{sortOrder=it},"সাজানোর ক্রম",KeyboardType.Number)
             SwitchRow("Active",active){active=it}
-        }},
-        confirmButton={TextButton(enabled=label.isNotBlank() && parsedGrams!=null && parsedGrams>0 && parsedPrice!=null && parsedPrice>=0,onClick={onSave(label.trim(),parsedGrams?:0,parsedPrice?:0.0,oldPrice.toDoubleOrNull(),stock.toIntOrNull()?:0,active,sortOrder.toIntOrNull()?:0)}){Text("সেভ")}},
-        dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}}
-    )
+    }
 }
 
 @Composable
@@ -550,26 +549,30 @@ private fun ProductDialog(
     }
 
     val parsedPrice = price.toDoubleOrNull()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column {
-                Text(
-                    if (initial == null) "নতুন পণ্য" else "পণ্য এডিট",
-                    fontWeight = FontWeight.Bold
-                )
+    FullScreenEditorPage(
+        onDismiss = onDismiss,
+        title = if (initial == null) "নতুন পণ্য" else "পণ্য এডিট",
+        confirmEnabled = !uploading && name.isNotBlank() && parsedPrice != null,
+        onConfirm = {
+            onSave(
+                name.trim(),
+                desc.trim().ifBlank { null },
+                parsedPrice ?: 0.0,
+                old.toDoubleOrNull(),
+                stock.toIntOrNull() ?: 0,
+                cat,
+                image,
+                featured,
+                flash,
+                hot
+            )
+        }
+    ) {
                 Text(
                     if (initial == null) "পণ্যের তথ্য ও ছবি"
-                    else "এখান থেকেই সাইজ / ভ্যারিয়েন্টও নিয়ন্ত্রণ করুন",
+                    else "এখান থেকেই সাইজ / ভ্যারিয়েন্টও নিয়ন্ত্রণ করুন",
                     style = MaterialTheme.typography.bodySmall
                 )
-            }
-        },
-        text = {
-            Column(
-                Modifier.heightIn(max = 620.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
                 Field(name, { name = it }, "পণ্যের নাম")
                 Field(price, { price = it }, "মূল দাম (৳)", KeyboardType.Decimal)
                 Field(old, { old = it }, "পুরনো দাম (৳)", KeyboardType.Decimal)
@@ -728,29 +731,7 @@ private fun ProductDialog(
                 SwitchRow("Flash sale", flash) { flash = it }
                 SwitchRow("Hot deal", hot) { hot = it }
                 formError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !uploading && name.isNotBlank() && parsedPrice != null,
-                onClick = {
-                    onSave(
-                        name.trim(),
-                        desc.trim().ifBlank { null },
-                        parsedPrice ?: 0.0,
-                        old.toDoubleOrNull(),
-                        stock.toIntOrNull() ?: 0,
-                        cat,
-                        image,
-                        featured,
-                        flash,
-                        hot
-                    )
-                }
-            ) { Text("সেভ") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }
-    )
+    }
 
     if (addVariant && initial != null) {
         VariantEditorDialog(
@@ -897,6 +878,58 @@ private fun AdminImageControl(
 }
 
 @Composable
+private fun FullScreenEditorPage(
+    onDismiss: () -> Unit,
+    title: String,
+    confirmText: String = "সেভ",
+    confirmEnabled: Boolean = true,
+    dismissText: String = "বাতিল",
+    onConfirm: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnBackPress = true, dismissOnClickOutside = false)
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.ArrowBack, "ফিরে যান") }
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                HorizontalDivider()
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    content = content
+                )
+                HorizontalDivider()
+                Row(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) { Text(dismissText) }
+                    Spacer(Modifier.width(8.dp))
+                    Button(enabled = confirmEnabled, onClick = onConfirm) { Text(confirmText) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun CategoryEditorDialog(
     initial: Category?,
     onDismiss: () -> Unit,
@@ -908,51 +941,36 @@ private fun CategoryEditorDialog(
     var imageUrl by remember { mutableStateOf(initial?.imageUrl ?: "") }
     var sortOrder by remember { mutableStateOf(initial?.sortOrder?.toString() ?: "0") }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "নতুন ক্যাটাগরি" else "ক্যাটাগরি এডিট") },
-        text = {
-            Column(
-                Modifier
-                    .heightIn(max = 480.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Field(name, { name = it }, "ক্যাটাগরির নাম")
-                Field(description, { description = it }, "বিবরণ", single = false)
-                AdminImageControl(
-                    imageUrl = imageUrl,
-                    onImageUrlChange = { imageUrl = it },
-                    label = "ক্যাটাগরির ছবি",
-                    height = 150.dp,
-                    onUpload = { uri -> CloudinaryClient(context).uploadImage(uri) }
-                )
-                Field(sortOrder, { sortOrder = it }, "Sort order", KeyboardType.Number)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Text(
-                        if (initial?.active == false) "বর্তমান অবস্থা: Off" else "বর্তমান অবস্থা: Active",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = name.isNotBlank(),
-                onClick = {
-                    onSave(
-                        name.trim(),
-                        description.trim().ifBlank { null },
-                        imageUrl.trim().ifBlank { null },
-                        sortOrder.toIntOrNull() ?: 0
-                    )
-                }
-            ) { Text("সেভ") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("বাতিল") }
+    FullScreenEditorPage(
+        onDismiss = onDismiss,
+        title = if (initial == null) "নতুন ক্যাটাগরি" else "ক্যাটাগরি এডিট",
+        confirmEnabled = name.isNotBlank(),
+        onConfirm = {
+            onSave(
+                name.trim(),
+                description.trim().ifBlank { null },
+                imageUrl.trim().ifBlank { null },
+                sortOrder.toIntOrNull() ?: 0
+            )
         }
-    )
+    ) {
+        Field(name, { name = it }, "ক্যাটাগরির নাম")
+        Field(description, { description = it }, "বিবরণ", single = false)
+        AdminImageControl(
+            imageUrl = imageUrl,
+            onImageUrlChange = { imageUrl = it },
+            label = "ক্যাটাগরির ছবি",
+            height = 150.dp,
+            onUpload = { uri -> CloudinaryClient(context).uploadImage(uri) }
+        )
+        Field(sortOrder, { sortOrder = it }, "Sort order", KeyboardType.Number)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Text(
+                if (initial?.active == false) "বর্তমান অবস্থা: Off" else "বর্তমান অবস্থা: Active",
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
 }
 
 
@@ -1063,22 +1081,16 @@ private fun OrderDetailsDialog(
         itemsLoading = false
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("অর্ডার #${o.orderNumber}", fontWeight = FontWeight.Bold)
+    FullScreenEditorPage(
+        onDismiss = onDismiss,
+        title = "অর্ডার #${o.orderNumber}",
+        confirmText = "আপডেট",
+        onConfirm = { onSave(status, pay) }
+    ) {
                 Text(
                     "${o.customer} • ${o.phone}",
                     style = MaterialTheme.typography.bodySmall
                 )
-            }
-        },
-        text = {
-            Column(
-                Modifier.heightIn(max = 600.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
                 OrderSection("দ্রুত অ্যাকশন") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilledTonalButton(
@@ -1187,17 +1199,7 @@ private fun OrderDetailsDialog(
                     Text("Payment status", fontWeight = FontWeight.SemiBold)
                     SimpleChoice(pay, PAYMENT_STATUSES) { pay = it }
                 }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(status, pay) }) {
-                Text("আপডেট")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("বন্ধ") }
-        }
-    )
+    }
 }
 
 
@@ -1474,32 +1476,28 @@ private fun Customers() {
 private fun UserDetailsDialog(c: Customer, onDismiss: () -> Unit, onRoleSave: (String) -> Unit) {
     val context = LocalContext.current
     var role by remember(c.id) { mutableStateOf(c.role) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("ইউজার তথ্য", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+    FullScreenEditorPage(
+        onDismiss = onDismiss,
+        title = "ইউজার তথ্য",
+        onConfirm = { onRoleSave(role) }
+    ) {
                 UserInfoCard("ব্যক্তিগত তথ্য") {
                     CopyInfoLine("নাম", c.name, context)
                     CopyInfoLine("ফোন", c.phone, context)
                     CopyInfoLine("Gmail", c.email, context)
                     CopyInfoLine("ঠিকানা", c.address, context)
                     CopyInfoLine("User ID", c.id, context)
-                    CopyInfoLine("যোগদানের সময়", c.createdAt, context)
+                    CopyInfoLine("যোগদানের সময়", c.createdAt, context)
                 }
                 UserInfoCard("দ্রুত অ্যাকশন") {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!c.phone.isNullOrBlank()) FilledTonalButton({ dialNumber(context, c.phone) }, Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(5.dp)); Text("কল") }
-                        if (!c.email.isNullOrBlank()) OutlinedButton({ copyText(context, c.email, "Gmail কপি হয়েছে") }, Modifier.weight(1f)) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(5.dp)); Text("Gmail কপি") }
+                        if (!c.email.isNullOrBlank()) OutlinedButton({ copyText(context, c.email, "Gmail কপি হয়েছে") }, Modifier.weight(1f)) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(5.dp)); Text("Gmail কপি") }
                     }
                 }
                 Text("Role", fontWeight = FontWeight.SemiBold)
                 SimpleChoice(role, CUSTOMER_ROLES) { role = it }
-            }
-        },
-        confirmButton = { TextButton(onClick = { onRoleSave(role) }) { Text("সেভ") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("বন্ধ") } }
-    )
+    }
 }
 
 @Composable
@@ -1681,11 +1679,14 @@ private fun BannerEditorDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "নতুন ব্যানার" else "ব্যানার এডিট") },
-        text = {
-            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FullScreenEditorPage(
+        onDismiss = onDismiss,
+        title = if (initial == null) "নতুন ব্যানার" else "ব্যানার এডিট",
+        confirmEnabled = imageUrl.isNotBlank() && sort.toIntOrNull() != null && !uploading,
+        onConfirm = {
+            onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active, widthPercent.toInt(), heightPx.toInt())
+        }
+    ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(type == "hero", { type = "hero" }, label = { Text("Hero") })
                     FilterChip(type == "promo", { type = "promo" }, label = { Text("Promo") })
@@ -1745,15 +1746,7 @@ private fun BannerEditorDialog(
                 Field(link, { link = it }, "Link URL (optional)")
                 Field(sort, { sort = it }, "Sort order", KeyboardType.Number)
                 SwitchRow("Active", active) { active = it }
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = imageUrl.isNotBlank() && sort.toIntOrNull() != null && !uploading, onClick = {
-                onSave(type, title.trim().ifBlank { null }, alt.trim().ifBlank { "ফল বাজার ব্যানার" }, imageUrl.trim(), link.trim().ifBlank { null }, sort.toIntOrNull() ?: 0, active, widthPercent.toInt(), heightPx.toInt())
-            }) { Text("সেভ") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("বাতিল") } }
-    )
+    }
 }
 
 @Composable private fun Wishlist(){
@@ -1774,11 +1767,11 @@ private fun BannerEditorDialog(
 
 private data class CouponForm(val code:String,val title:String?,val type:String,val value:Double,val min:Double,val max:Double?,val limit:Int?,val start:String?,val end:String?)
 
-@Composable private fun CouponDialog(initial:Coupon?,onDismiss:()->Unit,onSave:(CouponForm)->Unit){var code by remember{mutableStateOf(initial?.code?:"")};var title by remember{mutableStateOf(initial?.title?:"")};var type by remember{mutableStateOf(initial?.discountType ?: "percent")};var value by remember{mutableStateOf(initial?.discountValue?.toString()?:"")};var min by remember{mutableStateOf(initial?.minOrder?.toString()?: "0")};var max by remember{mutableStateOf(initial?.maxDiscount?.toString()?: "")};var limit by remember{mutableStateOf(initial?.usageLimit?.toString()?: "")};AlertDialog(onDismissRequest=onDismiss,title={Text(if(initial==null)"নতুন কুপন" else "কুপন এডিট")},text={Column(Modifier.heightIn(max=450.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){Field(code,{code=it},"কুপন কোড");Field(title,{title=it},"শিরোনাম");Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(type=="percent",{type="percent"},label={Text("Percent")});FilterChip(type=="fixed",{type="fixed"},label={Text("Fixed")})};Field(value,{value=it},"Discount value",KeyboardType.Decimal);Field(min,{min=it},"Minimum order",KeyboardType.Decimal);Field(max,{max=it},"Maximum discount",KeyboardType.Decimal);Field(limit,{limit=it},"Usage limit",KeyboardType.Number)}},confirmButton={TextButton(enabled=code.isNotBlank()&&value.toDoubleOrNull()!=null,onClick={onSave(CouponForm(code.trim(),title.trim().ifBlank{null},type,value.toDoubleOrNull()?:0.0,min.toDoubleOrNull()?:0.0,max.toDoubleOrNull(),limit.toIntOrNull(),initial?.startsAt,initial?.expiresAt))}){Text("সেভ")}},dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}})}
+@Composable private fun CouponDialog(initial:Coupon?,onDismiss:()->Unit,onSave:(CouponForm)->Unit){var code by remember{mutableStateOf(initial?.code?:"")};var title by remember{mutableStateOf(initial?.title?:"")};var type by remember{mutableStateOf(initial?.discountType ?: "percent")};var value by remember{mutableStateOf(initial?.discountValue?.toString()?:"")};var min by remember{mutableStateOf(initial?.minOrder?.toString()?: "0")};var max by remember{mutableStateOf(initial?.maxDiscount?.toString()?: "")};var limit by remember{mutableStateOf(initial?.usageLimit?.toString()?: "")};FullScreenEditorPage(onDismiss=onDismiss,title=if(initial==null)"নতুন কুপন" else "কুপন এডিট",confirmEnabled=code.isNotBlank()&&value.toDoubleOrNull()!=null,onConfirm={onSave(CouponForm(code.trim(),title.trim().ifBlank{null},type,value.toDoubleOrNull()?:0.0,min.toDoubleOrNull()?:0.0,max.toDoubleOrNull(),limit.toIntOrNull(),initial?.startsAt,initial?.expiresAt))}){Field(code,{code=it},"কুপন কোড");Field(title,{title=it},"শিরোনাম");Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(type=="percent",{type="percent"},label={Text("Percent")});FilterChip(type=="fixed",{type="fixed"},label={Text("Fixed")})};Field(value,{value=it},"Discount value",KeyboardType.Decimal);Field(min,{min=it},"Minimum order",KeyboardType.Decimal);Field(max,{max=it},"Maximum discount",KeyboardType.Decimal);Field(limit,{limit=it},"Usage limit",KeyboardType.Number)}}
 
 
-@Composable private fun RoleDialog(c:Customer,onDismiss:()->Unit,onSave:(String)->Unit){var role by remember{mutableStateOf(c.role)};AlertDialog(onDismissRequest=onDismiss,title={Text("${c.name} — Role")},text={SimpleChoice(role,CUSTOMER_ROLES){role=it}},confirmButton={TextButton(onClick={onSave(role)}){Text("সেভ")}},dismissButton={TextButton(onClick=onDismiss){Text("বাতিল")}})}
-@Composable private fun ComplaintDialog(c:Complaint,onDismiss:()->Unit,onSave:(String,String?)->Unit){var status by remember{mutableStateOf(c.status)};var note by remember{mutableStateOf(c.adminNote?:"")};AlertDialog(onDismissRequest=onDismiss,title={Text("অভিযোগ #${c.number}")},text={Column(Modifier.heightIn(max=450.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){Text(c.description);SimpleChoice(status,COMPLAINT_STATUSES){status=it};Field(note,{note=it},"Admin note",single=false)}},confirmButton={TextButton(onClick={onSave(status,note.trim().ifBlank{null})}){Text("আপডেট")}},dismissButton={TextButton(onClick=onDismiss){Text("বন্ধ")}})}
+@Composable private fun RoleDialog(c:Customer,onDismiss:()->Unit,onSave:(String)->Unit){var role by remember{mutableStateOf(c.role)};FullScreenEditorPage(onDismiss=onDismiss,title="${c.name} — Role",onConfirm={onSave(role)}){SimpleChoice(role,CUSTOMER_ROLES){role=it}}}
+@Composable private fun ComplaintDialog(c:Complaint,onDismiss:()->Unit,onSave:(String,String?)->Unit){var status by remember{mutableStateOf(c.status)};var note by remember{mutableStateOf(c.adminNote?:"")};FullScreenEditorPage(onDismiss=onDismiss,title="অভিযোগ #${c.number}",confirmText="আপডেট",onConfirm={onSave(status,note.trim().ifBlank{null})}){Text(c.description);SimpleChoice(status,COMPLAINT_STATUSES){status=it};Field(note,{note=it},"Admin note",single=false)}}
 
 @Composable private fun SimpleChoice(selected:String,options:List<String>,onChange:(String)->Unit){var open by remember{mutableStateOf(false)};Box{OutlinedButton({open=true}){Text(selected)};DropdownMenu(open,{open=false}){options.forEach{DropdownMenuItem(text={Text(it)},onClick={onChange(it);open=false})}}}}
 @Composable private fun SwitchRow(label:String,value:Boolean,onChange:(Boolean)->Unit){Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){Text(label,Modifier.weight(1f));Switch(value,onChange)}}
