@@ -163,6 +163,19 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         array(api.get("coupons", "?select=*&order=created_at.desc")).map { parseCoupon(it.jsonObject) }
     }}
 
+    suspend fun setting(key: String): Result<JsonElement?> = runCatching { withContext(Dispatchers.IO) {
+        val rows = array(api.get("site_settings", "?select=value&key=eq.${java.net.URLEncoder.encode(key, "UTF-8")}"))
+        rows.firstOrNull()?.jsonObject?.get("value")
+    }}
+
+    suspend fun saveSetting(key: String, value: JsonElement): Result<Unit> = runCatching { withContext(Dispatchers.IO) {
+        val body = buildJsonObject { put("key", key); put("value", value) }
+        api.patch("site_settings", "key=eq.${java.net.URLEncoder.encode(key, "UTF-8")}", buildJsonObject { put("value", value) }.toString())
+        val check = array(api.get("site_settings", "?select=key&key=eq.${java.net.URLEncoder.encode(key, "UTF-8")}"))
+        if (check.isEmpty()) api.post("site_settings", body.toString())
+        Unit
+    }}
+
     suspend fun banners(): Result<List<SiteBanner>> = runCatching { withContext(Dispatchers.IO) {
         array(api.get("site_banners", "?select=*&order=banner_type.asc,sort_order.asc,created_at.desc")).map { parseBanner(it.jsonObject) }
     }}

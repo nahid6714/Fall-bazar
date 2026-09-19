@@ -46,6 +46,9 @@ import com.folbazar.admin.BuildConfig
 import com.folbazar.admin.data.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 
 private data class NavItem(val route: String, val label: String, val icon: ImageVector)
 private val ORDER_STATUSES = listOf("pending","confirmed","processing","packed","shipped","out_for_delivery","delivered","cancelled","returned")
@@ -71,6 +74,7 @@ fun FolBazarAdminApp() {
         NavItem("dashboard","ড্যাশবোর্ড",Icons.Default.Dashboard),
         NavItem("products","পণ্য",Icons.Default.Inventory2),
         NavItem("orders","অর্ডার",Icons.Default.ShoppingCart),
+        NavItem("analytics","অ্যানালিটিক্স",Icons.Default.Analytics),
         NavItem("more","আরও",Icons.Default.MoreHoriz)
     )
     Scaffold(
@@ -86,7 +90,7 @@ fun FolBazarAdminApp() {
         bottomBar = {
             NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
                 val current = nav.currentBackStackEntryAsState().value?.destination?.route
-                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist","banners","settings")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }, colors = NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary, indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
+                items.forEach { item -> NavigationBarItem(selected = current == item.route || (item.route == "more" && current in listOf("more","categories","customers","complaints","coupons","wishlist","banners","settings","analytics")), onClick = { nav.navigate(item.route) { launchSingleTop = true } }, icon = { Icon(item.icon,null) }, label = { Text(item.label) }, colors = NavigationBarItemDefaults.colors(selectedIconColor = MaterialTheme.colorScheme.primary, selectedTextColor = MaterialTheme.colorScheme.primary, indicatorColor = MaterialTheme.colorScheme.primaryContainer)) }
             }
         }
     ) { padding ->
@@ -94,6 +98,7 @@ fun FolBazarAdminApp() {
             composable("dashboard") { Dashboard(nav) }
             composable("products") { Products() }
             composable("orders") { Orders() }
+            composable("analytics") { Analytics() }
             composable("more") { More(nav) }
             composable("categories") { Categories() }
             composable("customers") { Customers() }
@@ -178,6 +183,43 @@ private fun DashboardShortcut(title: String, icon: ImageVector, modifier: Modifi
     }
 }
 
+@Composable private fun Analytics() {
+    var orders by remember { mutableStateOf<List<Order>>(emptyList()) }
+    var products by remember { mutableStateOf<List<Product>>(emptyList()) }
+    var items by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
+    var goal by remember { mutableStateOf("100000") }
+    var goalInput by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var refresh by remember { mutableStateOf(0) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(refresh) {
+        val r = Repository()
+        val os = r.orders(); val ps = r.products()
+        orders = os.getOrNull().orEmpty(); products = ps.getOrNull().orEmpty()
+        val all = mutableListOf<OrderItem>()
+        orders.take(100).forEach { o -> r.orderItems(o.id).getOrNull()?.let { all += it } }
+        items = all
+        r.setting("sales_goal").getOrNull()?.jsonPrimitive?.doubleOrNull?.let { goal = it.toLong().toString() }
+        error = os.exceptionOrNull()?.message ?: ps.exceptionOrNull()?.message
+    }
+    val delivered = orders.filter { it.status == "delivered" }
+    val revenue = delivered.sumOf { it.total }
+    val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    val todayOrders = orders.count { it.createdAt?.take(10) == today }
+    val top = items.groupBy { it.productName }.mapValues { (_, xs) -> xs.sumOf { it.quantity } }.entries.sortedByDescending { it.value }.take(5)
+    val goalValue = goal.toDoubleOrNull() ?: 0.0
+    val progress = if (goalValue > 0) (revenue / goalValue).coerceIn(0.0, 1.0) else 0.0
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Text("সেলস অ্যানালিটিক্স", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("আগের Admin Panel-এর dashboard analytics ও sales goal এখন Fol Bazar-এ") }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) { Stat("Delivered Sales", "৳ ${money(revenue)}", Icons.Default.Payments, Modifier.weight(1f)) {}; Stat("আজকের অর্ডার", todayOrders.toString(), Icons.Default.Today, Modifier.weight(1f)) {} } }
+        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) { Text("মাসিক / সেলস Goal", fontWeight=FontWeight.Bold); Text("৳ ${money(revenue)} / ৳ ${money(goalValue)}"); LinearProgressIndicator(progress={progress}, modifier=Modifier.fillMaxWidth()); Row(horizontalArrangement=Arrangement.spacedBy(8.dp), verticalAlignment=Alignment.CenterVertically) { OutlinedTextField(goalInput, {goalInput=it}, label={Text("Goal (৳)")}, keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal), modifier=Modifier.weight(1f), singleLine=true); Button(onClick={ val v=goalInput.toDoubleOrNull(); if(v!=null){ goal=v.toString(); scope.launch { Repository().saveSetting("sales_goal", JsonPrimitive(v)) } } }){Text("সেভ")} } } } }
+        item { Text("Top Selling Products", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
+        items(top) { e -> Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(14.dp), horizontalArrangement=Arrangement.SpaceBetween, modifier=Modifier.fillMaxWidth()) { Text(e.key, modifier=Modifier.weight(1f)); Text("${e.value} pcs", fontWeight=FontWeight.Bold) } } }
+        error?.let { item { Text("ডাটা লোড সমস্যা: $it", color=MaterialTheme.colorScheme.error) } }
+        item { OutlinedButton(onClick={refresh++}, modifier=Modifier.fillMaxWidth()){Icon(Icons.Default.Refresh,null);Spacer(Modifier.width(6.dp));Text("রিফ্রেশ")} }
+    }
+}
+
 @Composable private fun More(nav:NavHostController){
     LazyColumn(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
         item{Text("অ্যাডমিন ম্যানেজমেন্ট",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("ওয়েবসাইটের বাকি সব নিয়ন্ত্রণ এখান থেকে")}
@@ -186,7 +228,8 @@ private fun DashboardShortcut(title: String, icon: ImageVector, modifier: Modifi
         item{AdminAction("অভিযোগ","অভিযোগ দেখা, নোট ও status পরিবর্তন",Icons.Default.ReportProblem){nav.navigate("complaints")}}
         item{AdminAction("কুপন / ডিসকাউন্ট","coupon code, percent/fixed discount, limit",Icons.Default.LocalOffer){nav.navigate("coupons")}}
         item{AdminAction("Wishlist","কোন পণ্য কতবার wishlist হয়েছে",Icons.Default.Favorite){nav.navigate("wishlist")}}
-        item{AdminAction("ওয়েবসাইট ব্যানার","Hero/Promo banner যোগ, edit, active/off, delete ও Cloudinary image",Icons.Default.Image){nav.navigate("banners")}}
+        item{AdminAction("ওয়েবসাইট ব্যানার / ইভেন্ট","Hero, Promo ও Event banner যোগ, edit, active/off, delete ও Cloudinary image",Icons.Default.Image){nav.navigate("banners")}}
+        item{AdminAction("সেলস অ্যানালিটিক্স","Sales goal, আজকের অর্ডার, delivered revenue ও top products",Icons.Default.Analytics){nav.navigate("analytics")}}
         item{AdminAction("সেটিংস / App Update","অ্যাপ আপডেট চেক, ডাউনলোড ও ইনস্টল",Icons.Default.Settings){nav.navigate("settings")}}
         item{Text("নিরাপত্তা: database RLS policy-ই চূড়ান্ত permission; app শুধু admin JWT দিয়ে কাজ করে.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
     }
@@ -1968,6 +2011,7 @@ private fun BannerEditorDialog(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(type == "hero", { type = "hero" }, label = { Text("Hero") })
                     FilterChip(type == "promo", { type = "promo" }, label = { Text("Promo") })
+                    FilterChip(type == "event", { type = "event" }, label = { Text("Event") })
                 }
                 Field(title, { title = it }, "Title")
                 Field(alt, { alt = it }, "Alt text")
@@ -2219,6 +2263,20 @@ private fun SettingsScreen(onLogout: () -> Unit) {
     var message by remember { mutableStateOf<String?>(null) }
     var download by remember { mutableStateOf(DownloadState()) }
     var installedFile by remember { mutableStateOf<java.io.File?>(null) }
+    var logoUrl by remember { mutableStateOf("") }
+    var logoUploading by remember { mutableStateOf(false) }
+    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            logoUploading = true
+            scope.launch {
+                CloudinaryClient(context).uploadImage(uri).fold(
+                    { url -> logoUrl = url; Repository().saveSetting("logo_url", JsonPrimitive(url)) },
+                    { message = it.message ?: "লোগো আপলোড ব্যর্থ" }
+                )
+                logoUploading = false
+            }
+        }
+    }
 
     fun check() {
         if (checking) return
@@ -2244,6 +2302,7 @@ private fun SettingsScreen(onLogout: () -> Unit) {
     }
 
     LaunchedEffect(Unit) { check() }
+    LaunchedEffect(Unit) { Repository().setting("logo_url").getOrNull()?.jsonPrimitive?.contentOrNull?.let { logoUrl = it } }
 
     LazyColumn(
         Modifier.fillMaxSize().padding(16.dp),
@@ -2252,6 +2311,22 @@ private fun SettingsScreen(onLogout: () -> Unit) {
         item {
             Text("সেটিংস", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text("Fol Bazar Admin • বর্তমান ভার্সন ${BuildConfig.VERSION_NAME}")
+        }
+
+        item {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("ওয়েবসাইট লোগো", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("Cloudinary-তে লোগো আপলোড করে site_settings.logo_url-এ সংরক্ষণ করুন।", style = MaterialTheme.typography.bodySmall)
+                    if (logoUrl.isNotBlank()) AsyncImage(model = logoUrl, contentDescription = "Logo", modifier = Modifier.size(84.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { logoPicker.launch("image/*") }, enabled = !logoUploading) {
+                            Icon(Icons.Default.Image, null); Spacer(Modifier.width(6.dp)); Text(if (logoUploading) "আপলোড হচ্ছে…" else "লোগো আপলোড")
+                        }
+                        if (logoUrl.isNotBlank()) TextButton(onClick = { logoUrl = "" }) { Text("URL মুছুন") }
+                    }
+                }
+            }
         }
 
         item {
