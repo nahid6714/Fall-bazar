@@ -1104,14 +1104,31 @@ private fun OrderDetailsDialog(
 
     LaunchedEffect(o.id) {
         itemsLoading = true
-        items = Repository().orderItems(o.id).getOrDefault(emptyList())
+        val loaded = Repository().orderItems(o.id).getOrDefault(emptyList())
+        // পুরনো/টেস্ট অর্ডারে product_id সেভ না থাকলে বা ছবি না এলে, নাম মিলিয়ে বর্তমান পণ্য তালিকা থেকে লিংক করার চেষ্টা
+        items = if (loaded.any { it.productId == null || it.imageUrl == null }) {
+            val allProducts = Repository().products().getOrDefault(emptyList())
+            loaded.map { item ->
+                if (item.productId != null && item.imageUrl != null) return@map item
+                val match = if (item.productId != null) allProducts.firstOrNull { p -> p.id == item.productId }
+                else allProducts.firstOrNull { p -> p.name.equals(item.productName, ignoreCase = true) }
+                if (match != null) item.copy(
+                    productId = item.productId ?: match.id,
+                    imageUrl = item.imageUrl ?: match.imageUrl
+                ) else item
+            }
+        } else loaded
         itemsLoading = false
     }
     LaunchedEffect(Unit) {
         cats = Repository().categories().getOrDefault(emptyList())
     }
 
-    fun openProduct(productId: String) {
+    fun openProduct(productId: String?) {
+        if (productId == null) {
+            Toast.makeText(context, "এই আইটেমের সাথে কোনো পণ্য যুক্ত পাওয়া যায়নি (হয়তো পণ্যটি মুছে ফেলা হয়েছে)", Toast.LENGTH_SHORT).show()
+            return
+        }
         productError = null
         productLoadingId = productId
         scope.launch {
@@ -1175,11 +1192,10 @@ private fun OrderDetailsDialog(
                         itemsLoading -> LinearProgressIndicator(Modifier.fillMaxWidth())
                         items.isEmpty() -> Text("পণ্যের বিস্তারিত পাওয়া যায়নি", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else -> items.forEach { it2 ->
-                            val canOpen = it2.productId != null
                             Row(
                                 Modifier
                                     .fillMaxWidth()
-                                    .clickable(enabled = canOpen) { openProduct(it2.productId!!) }
+                                    .clickable { openProduct(it2.productId) }
                                     .padding(vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
