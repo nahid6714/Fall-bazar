@@ -49,6 +49,7 @@ object OrderReceiptExporter {
 
             val measuredHeight = webView.measureContentHeightPx()
             val contentHeightPx = maxOf(measuredHeight, size.heightCssPx ?: 1, 1)
+            webView.scrollTo(0, 0)
             val pageHeightMm = size.heightMm ?: (
                 ReceiptPaperSize.cssPxToMm(measuredHeight.coerceAtLeast(1).toFloat()) + 4f
             )
@@ -60,11 +61,14 @@ object OrderReceiptExporter {
             webView.layout(0, 0, size.widthCssPx, contentHeightPx)
             webView.requestLayout()
             // Give Chromium one render pass before we capture the view.
-            delay(120)
+            // Wait for the WebView layout/paint pipeline (including font/layout reflow).
+            delay(350)
 
             // Render the WebView to a bitmap first. Drawing the WebView directly to
             // PdfDocument can produce a blank page on some Android/WebView versions.
             // The bitmap path is reliable and also keeps PDF and PNG output identical.
+            webView.scrollTo(0, 0)
+            delay(150)
             val bitmap = renderWebView(webView, size.widthCssPx, contentHeightPx)
             try {
                 val file = File(exportsDir(activity), "order-${order.orderNumber}-${size.name.lowercase()}.pdf")
@@ -93,6 +97,8 @@ object OrderReceiptExporter {
 
             val measuredHeight = webView.measureContentHeightPx()
             val heightPx = maxOf(measuredHeight, size.heightCssPx ?: 1, 1)
+            webView.scrollTo(0, 0)
+            delay(150)
             val bitmap = renderWebView(webView, size.widthCssPx, heightPx)
             try {
                 val file = File(exportsDir(activity), "order-${order.orderNumber}-${size.name.lowercase()}.png")
@@ -140,6 +146,9 @@ object OrderReceiptExporter {
         settings.setSupportZoom(false)
         settings.builtInZoomControls = false
         settings.displayZoomControls = false
+        settings.defaultFontSize = 16
+        settings.defaultFixedFontSize = 16
+        setInitialScale(100)
         setBackgroundColor(Color.WHITE)
     }
 
