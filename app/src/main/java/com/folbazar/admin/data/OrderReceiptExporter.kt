@@ -7,12 +7,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.os.CancellationSignal
-import android.os.ParcelFileDescriptor
-import android.print.PageRange
-import android.print.PrintAttributes
-import android.print.PrintDocumentAdapter
-import android.print.PrintDocumentInfo
+import android.graphics.pdf.PdfDocument
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
@@ -22,7 +17,6 @@ import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -52,16 +46,24 @@ object OrderReceiptExporter {
             attach(activity, webView, size.widthCssPx)
             webView.loadHtmlSuspend(html)
 
-            val mediaSize = if (size.isAutoHeight) {
-                val heightPx = webView.measureContentHeightPx()
-                val heightMm = ReceiptPaperSize.cssPxToMm(heightPx.toFloat()) + 4f // small safety margin
-                size.mediaSize(heightMm)
+            val contentHeightPx = webView.measureContentHeightPx()
+            val pageHeightMm = if (size.isAutoHeight) {
+                ReceiptPaperSize.cssPxToMm(contentHeightPx.toFloat()) + 4f
             } else {
-                size.mediaSize()
+                size.heightMm ?: ReceiptPaperSize.cssPxToMm(contentHeightPx.toFloat())
             }
 
+            val layoutHeightPx = maxOf(contentHeightPx, size.heightCssPx ?: contentHeightPx, 1)
+            webView.measure(
+                View.MeasureSpec.makeMeasureSpec(size.widthCssPx, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(layoutHeightPx, View.MeasureSpec.EXACTLY)
+            )
+            webView.layout(0, 0, size.widthCssPx, layoutHeightPx)
+
+            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+
             val file = File(exportsDir(activity), "order-${order.orderNumber}-${size.name.lowercase()}.pdf")
-            webView.printToFile(mediaSize, file)
+            webView.writePdfToFile(size.widthMm, pageHeightMm, contentHeightPx, file)
             file
         } finally {
             detach(webView)
@@ -176,44 +178,62 @@ object OrderReceiptExporter {
         }
     }
 
-    /** Drives WebView's built-in print pipeline to write a PDF sized to [mediaSize] directly to [outFile]. */
-    private suspend fun WebView.printToFile(mediaSize: PrintAttributes.MediaSize, outFile: File) {
-        val attributes = PrintAttributes.Builder()
-            .setMediaSize(mediaSize)
-            .setResolution(PrintAttributes.Resolution("receipt", "receipt", 300, 300))
-            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-            .build()
+    /**
+     * Writes the rendered WebView directly to a PDF.
+     *
+     * We intentionally do not use PrintDocumentAdapter here: recent Android SDKs
+     * expose LayoutResultCallback/WriteResultCallback constructors as package-private,
+     * so app code can no longer instantiate those callback classes. PdfDocument gives
+     * us the same result without relying on hidden/package-private framework APIs.
+     */
+    private fun WebView.writePdfToFile(
+        widthMm: Float,
+        pageHeightMm: Float,
+        contentHeightCssPx: Int,
+        outFile: File
+    ) {
+        val pageWidthPt = mmToPdfPoints(widthMm)
+        val pageHeightPt = mmToPdfPoints(pageHeightMm)
+        val fixedPageHeightCssPx = ReceiptPaperSize.mmToCssPx(pageHeightMm)
+        val autoHeight = pageHeightMm > 0f && contentHeightCssPx <= fixedPageHeightCssPx + 2
+        val pageCount = if (autoHeight) 1 else {
+            val pageHeight = fixedPageHeightCssPx.coerceAtLeast(1)
+            ((contentHeightCssPx + pageHeight - 1) / pageHeight).coerceAtLeast(1)
+        }
 
-        val adapter = createPrintDocumentAdapter("receipt-${outFile.nameWithoutExtension}")
+        val document = PdfDocument()
+        try {
+            val scaleX = pageWidthPt.toFloat() / width
+            val pageHeightCssPx = fixedPageHeightCssPx.coerceAtLeast(1)
 
-        suspendCancellableCoroutine<Unit> { cont ->
-            adapter.onLayout(null, attributes, CancellationSignal(), object : PrintDocumentAdapter.LayoutResultCallback() {
-                override fun onLayoutFinished(info: PrintDocumentInfo?, changed: Boolean) {
-                    val pfd = ParcelFileDescriptor.open(
-                        outFile,
-                        ParcelFileDescriptor.MODE_CREATE or ParcelFileDescriptor.MODE_TRUNCATE or ParcelFileDescriptor.MODE_READ_WRITE
-                    )
-                    adapter.onWrite(arrayOf(PageRange.ALL_PAGES), pfd, CancellationSignal(), object : PrintDocumentAdapter.WriteResultCallback() {
-                        override fun onWriteFinished(pages: Array<out PageRange>?) {
-                            pfd.close()
-                            if (cont.isActive) cont.resume(Unit)
-                        }
-
-                        override fun onWriteFailed(error: CharSequence?) {
-                            pfd.close()
-                            if (cont.isActive) cont.resumeWithException(RuntimeException("PDF লেখা যায়নি: $error"))
-                        }
-                    })
+            for (pageNumber in 0 until pageCount) {
+                val pageInfo = PdfDocument.PageInfo.Builder(
+                    pageWidthPt,
+                    pageHeightPt,
+                    pageNumber + 1
+                ).create()
+                val page = document.startPage(pageInfo)
+                val canvas = page.canvas
+                canvas.drawColor(Color.WHITE)
+                canvas.save()
+                canvas.scale(scaleX, scaleX)
+                if (!autoHeight) {
+                    canvas.translate(0f, -(pageNumber * pageHeightCssPx).toFloat())
                 }
+                draw(canvas)
+                canvas.restore()
+                document.finishPage(page)
+            }
 
-                override fun onLayoutFailed(error: CharSequence?) {
-                    if (cont.isActive) cont.resumeWithException(RuntimeException("PDF লেআউট ব্যর্থ: $error"))
-                }
-
-                override fun onLayoutCancelled() {
-                    if (cont.isActive) cont.cancel()
-                }
-            }, null)
+            FileOutputStream(outFile).use { output ->
+                document.writeTo(output)
+            }
+        } finally {
+            document.close()
         }
     }
+
+    private fun mmToPdfPoints(mm: Float): Int =
+        ((mm / 25.4f) * 72f).toInt().coerceAtLeast(1)
+
 }
