@@ -18,6 +18,7 @@ import java.io.File
 import java.io.FileOutputStream
 import kotlin.coroutines.resume
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 
@@ -43,28 +44,35 @@ object OrderReceiptExporter {
         val webView = createWebView(activity)
         try {
             val html = ReceiptHtmlBuilder.build(order, items, size)
-            attach(activity, webView, size.widthCssPx)
+            attach(activity, webView, size.widthCssPx, size.heightCssPx ?: 1200)
             webView.loadHtmlSuspend(html)
 
-            val contentHeightPx = webView.measureContentHeightPx()
-            val pageHeightMm = if (size.isAutoHeight) {
-                ReceiptPaperSize.cssPxToMm(contentHeightPx.toFloat()) + 4f
-            } else {
-                size.heightMm ?: ReceiptPaperSize.cssPxToMm(contentHeightPx.toFloat())
-            }
+            val measuredHeight = webView.measureContentHeightPx()
+            val contentHeightPx = maxOf(measuredHeight, size.heightCssPx ?: 1, 1)
+            val pageHeightMm = size.heightMm ?: (
+                ReceiptPaperSize.cssPxToMm(measuredHeight.coerceAtLeast(1).toFloat()) + 4f
+            )
 
-            val layoutHeightPx = maxOf(contentHeightPx, size.heightCssPx ?: contentHeightPx, 1)
             webView.measure(
                 View.MeasureSpec.makeMeasureSpec(size.widthCssPx, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(layoutHeightPx, View.MeasureSpec.EXACTLY)
+                View.MeasureSpec.makeMeasureSpec(contentHeightPx, View.MeasureSpec.EXACTLY)
             )
-            webView.layout(0, 0, size.widthCssPx, layoutHeightPx)
+            webView.layout(0, 0, size.widthCssPx, contentHeightPx)
+            webView.requestLayout()
+            // Give Chromium one render pass before we capture the view.
+            delay(120)
 
-            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-
-            val file = File(exportsDir(activity), "order-${order.orderNumber}-${size.name.lowercase()}.pdf")
-            webView.writePdfToFile(size.widthMm, pageHeightMm, contentHeightPx, file)
-            file
+            // Render the WebView to a bitmap first. Drawing the WebView directly to
+            // PdfDocument can produce a blank page on some Android/WebView versions.
+            // The bitmap path is reliable and also keeps PDF and PNG output identical.
+            val bitmap = renderWebView(webView, size.widthCssPx, contentHeightPx)
+            try {
+                val file = File(exportsDir(activity), "order-${order.orderNumber}-${size.name.lowercase()}.pdf")
+                bitmap.writePdfToFile(size.widthMm, pageHeightMm, size.heightMm != null, file)
+                file
+            } finally {
+                bitmap.recycle()
+            }
         } finally {
             detach(webView)
         }
@@ -80,29 +88,19 @@ object OrderReceiptExporter {
         val webView = createWebView(activity)
         try {
             val html = ReceiptHtmlBuilder.build(order, items, size)
-            attach(activity, webView, size.widthCssPx)
+            attach(activity, webView, size.widthCssPx, size.heightCssPx ?: 1200)
             webView.loadHtmlSuspend(html)
 
-            val widthPx = size.widthCssPx
-            val heightPx = size.heightCssPx ?: webView.measureContentHeightPx()
-
-            webView.measure(
-                View.MeasureSpec.makeMeasureSpec(widthPx, View.MeasureSpec.EXACTLY),
-                View.MeasureSpec.makeMeasureSpec(heightPx, View.MeasureSpec.EXACTLY)
-            )
-            webView.layout(0, 0, widthPx, heightPx)
-            webView.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-
-            val bmp = Bitmap.createBitmap(widthPx * scale, heightPx * scale, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bmp)
-            canvas.drawColor(Color.WHITE)
-            canvas.scale(scale.toFloat(), scale.toFloat())
-            webView.draw(canvas)
-
-            val file = File(exportsDir(activity), "order-${order.orderNumber}-${size.name.lowercase()}.png")
-            FileOutputStream(file).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            bmp.recycle()
-            file
+            val measuredHeight = webView.measureContentHeightPx()
+            val heightPx = maxOf(measuredHeight, size.heightCssPx ?: 1, 1)
+            val bitmap = renderWebView(webView, size.widthCssPx, heightPx)
+            try {
+                val file = File(exportsDir(activity), "order-${order.orderNumber}-${size.name.lowercase()}.png")
+                FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                file
+            } finally {
+                bitmap.recycle()
+            }
         } finally {
             detach(webView)
         }
@@ -145,13 +143,22 @@ object OrderReceiptExporter {
         setBackgroundColor(Color.WHITE)
     }
 
-    /** Adds the WebView to the activity's content root, positioned off-screen so it never flashes on screen. */
-    private fun attach(activity: Activity, webView: WebView, widthPx: Int) {
+    /** Adds the WebView behind the visible Compose content so Chromium still rasterizes it. */
+    private fun attach(activity: Activity, webView: WebView, widthPx: Int, heightPx: Int) {
         val root = activity.findViewById<ViewGroup>(android.R.id.content)
-        val lp = FrameLayout.LayoutParams(widthPx, FrameLayout.LayoutParams.WRAP_CONTENT)
-        webView.layoutParams = lp
-        webView.translationX = -100000f
-        root.addView(webView, lp)
+        val lp = FrameLayout.LayoutParams(widthPx, heightPx.coerceAtLeast(1))
+        // Keep the WebView behind the Compose UI instead of translating it far
+        // off-screen. Some Android WebView implementations skip rasterization
+        // for completely off-screen views, which resulted in blank PDF pages.
+        root.addView(webView, 0, lp)
+    }
+
+    private fun renderWebView(webView: WebView, widthPx: Int, heightPx: Int): Bitmap {
+        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+        webView.draw(canvas)
+        return bitmap
     }
 
     private fun detach(webView: WebView) {
@@ -179,33 +186,30 @@ object OrderReceiptExporter {
     }
 
     /**
-     * Writes the rendered WebView directly to a PDF.
+     * Writes the rendered receipt bitmap to a PDF.
      *
      * We intentionally do not use PrintDocumentAdapter here: recent Android SDKs
-     * expose LayoutResultCallback/WriteResultCallback constructors as package-private,
-     * so app code can no longer instantiate those callback classes. PdfDocument gives
-     * us the same result without relying on hidden/package-private framework APIs.
+     * expose LayoutResultCallback/WriteResultCallback constructors as package-private.
+     * Rendering to a bitmap first also avoids blank pages on some WebView versions.
      */
-    private fun WebView.writePdfToFile(
+    private fun Bitmap.writePdfToFile(
         widthMm: Float,
         pageHeightMm: Float,
-        contentHeightCssPx: Int,
+        fixedHeight: Boolean,
         outFile: File
     ) {
         val pageWidthPt = mmToPdfPoints(widthMm)
         val pageHeightPt = mmToPdfPoints(pageHeightMm)
-        val fixedPageHeightCssPx = ReceiptPaperSize.mmToCssPx(pageHeightMm)
-        val autoHeight = pageHeightMm > 0f && contentHeightCssPx <= fixedPageHeightCssPx + 2
-        val pageCount = if (autoHeight) 1 else {
-            val pageHeight = fixedPageHeightCssPx.coerceAtLeast(1)
-            ((contentHeightCssPx + pageHeight - 1) / pageHeight).coerceAtLeast(1)
+        val pageHeightPx = ReceiptPaperSize.mmToCssPx(pageHeightMm).coerceAtLeast(1)
+        val pageCount = if (fixedHeight) {
+            ((height + pageHeightPx - 1) / pageHeightPx).coerceAtLeast(1)
+        } else {
+            1
         }
 
         val document = PdfDocument()
         try {
-            val scaleX = pageWidthPt.toFloat() / width
-            val pageHeightCssPx = fixedPageHeightCssPx.coerceAtLeast(1)
-
+            val scaleX = pageWidthPt.toFloat() / width.toFloat()
             for (pageNumber in 0 until pageCount) {
                 val pageInfo = PdfDocument.PageInfo.Builder(
                     pageWidthPt,
@@ -217,17 +221,14 @@ object OrderReceiptExporter {
                 canvas.drawColor(Color.WHITE)
                 canvas.save()
                 canvas.scale(scaleX, scaleX)
-                if (!autoHeight) {
-                    canvas.translate(0f, -(pageNumber * pageHeightCssPx).toFloat())
+                if (fixedHeight) {
+                    canvas.translate(0f, -(pageNumber * pageHeightPx).toFloat())
                 }
-                draw(canvas)
+                canvas.drawBitmap(this, 0f, 0f, null)
                 canvas.restore()
                 document.finishPage(page)
             }
-
-            FileOutputStream(outFile).use { output ->
-                document.writeTo(output)
-            }
+            FileOutputStream(outFile).use { document.writeTo(it) }
         } finally {
             document.close()
         }
