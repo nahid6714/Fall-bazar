@@ -1660,15 +1660,22 @@ private fun Customers() {
         loading = false
     }
 
+    // The chips are real field filters. With an empty search box they still
+    // filter users by whether that field exists; when text is entered they
+    // additionally perform a case-insensitive contains search in that field.
     val filtered = remember(list, query, filterMode) {
         val q = query.trim()
-        if (q.isBlank()) list else list.filter { c ->
-            when (filterMode) {
-                "নাম" -> c.name.contains(q, ignoreCase = true)
-                "নম্বর" -> (c.phone ?: "").contains(q, ignoreCase = true)
-                "Gmail" -> (c.email ?: "").contains(q, ignoreCase = true)
-                else -> c.name.contains(q, true) || (c.phone ?: "").contains(q, true) || (c.email ?: "").contains(q, true)
+        list.filter { c ->
+            val fieldMatches = when (filterMode) {
+                "নাম" -> c.name.isNotBlank() && (q.isBlank() || c.name.contains(q, ignoreCase = true))
+                "নম্বর" -> !c.phone.isNullOrBlank() && (q.isBlank() || c.phone.orEmpty().contains(q, ignoreCase = true))
+                "Gmail" -> !c.email.isNullOrBlank() && (q.isBlank() || c.email.orEmpty().contains(q, ignoreCase = true))
+                else -> q.isBlank() ||
+                    c.name.contains(q, ignoreCase = true) ||
+                    (c.phone ?: "").contains(q, ignoreCase = true) ||
+                    (c.email ?: "").contains(q, ignoreCase = true)
             }
+            fieldMatches
         }
     }
 
@@ -1676,7 +1683,7 @@ private fun Customers() {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("সকল ইউজার", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                Text("${list.size} জন • নাম, নম্বর বা Gmail দিয়ে খুঁজুন")
+                Text("${filtered.size} জন • নাম, নম্বর বা Gmail দিয়ে খুঁজুন")
             }
             IconButton(onClick = { refresh++ }) { Icon(Icons.Default.Refresh, "রিফ্রেশ") }
         }
@@ -1688,8 +1695,8 @@ private fun Customers() {
             singleLine = true,
             leadingIcon = { Icon(Icons.Default.Search, null) },
             trailingIcon = if (query.isNotBlank()) ({ IconButton(onClick = { query = "" }) { Icon(Icons.Default.Clear, "মুছুন") } }) else null,
-            label = { Text("ইউজার খুঁজুন") },
-            placeholder = { Text("নাম / ফোন / Gmail") }
+            label = { Text("${when (filterMode) { "নাম" -> "নাম"; "নম্বর" -> "ফোন নম্বর"; "Gmail" -> "Gmail"; else -> "ইউজার" }} খুঁজুন") },
+            placeholder = { Text(if (filterMode == "সব") "নাম / ফোন / Gmail" else when (filterMode) { "নাম" -> "নাম লিখুন"; "নম্বর" -> "নম্বর লিখুন"; else -> "Gmail লিখুন" }) }
         )
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
