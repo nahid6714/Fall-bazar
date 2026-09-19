@@ -125,7 +125,8 @@ data class OrderItem(
     val weightGrams: Int? = null,
     val unitPrice: Double,
     val quantity: Int,
-    val lineTotal: Double
+    val lineTotal: Double,
+    val imageUrl: String? = null
 )
 
 data class SiteBanner(

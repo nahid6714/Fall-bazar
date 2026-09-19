@@ -9,10 +9,12 @@ import android.content.ClipboardManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.rememberScrollState
@@ -1090,15 +1092,38 @@ private fun OrderDetailsDialog(
     onSave: (String, String) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf(o.status) }
     var pay by remember { mutableStateOf(o.paymentStatus) }
     var items by remember { mutableStateOf<List<OrderItem>>(emptyList()) }
     var itemsLoading by remember { mutableStateOf(true) }
+    var cats by remember { mutableStateOf<List<Category>>(emptyList()) }
+    var viewProduct by remember { mutableStateOf<Product?>(null) }
+    var productLoadingId by remember { mutableStateOf<String?>(null) }
+    var productError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(o.id) {
         itemsLoading = true
         items = Repository().orderItems(o.id).getOrDefault(emptyList())
         itemsLoading = false
+    }
+    LaunchedEffect(Unit) {
+        cats = Repository().categories().getOrDefault(emptyList())
+    }
+
+    fun openProduct(productId: String) {
+        productError = null
+        productLoadingId = productId
+        scope.launch {
+            Repository().product(productId).fold(
+                { p ->
+                    if (p != null) viewProduct = p
+                    else productError = "পণ্যটি আর পাওয়া যাচ্ছে না (মুছে ফেলা হয়েছে)"
+                },
+                { productError = it.message ?: "পণ্য লোড করা যায়নি" }
+            )
+            productLoadingId = null
+        }
     }
 
     FullScreenEditorPage(
@@ -1150,7 +1175,36 @@ private fun OrderDetailsDialog(
                         itemsLoading -> LinearProgressIndicator(Modifier.fillMaxWidth())
                         items.isEmpty() -> Text("পণ্যের বিস্তারিত পাওয়া যায়নি", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         else -> items.forEach { it2 ->
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            val canOpen = it2.productId != null
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = canOpen) { openProduct(it2.productId!!) }
+                                    .padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(52.dp)
+                                        .clip(MaterialTheme.shapes.small)
+                                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (it2.imageUrl != null) {
+                                        AsyncImage(
+                                            model = it2.imageUrl,
+                                            contentDescription = it2.productName,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Default.Image, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    if (productLoadingId == it2.productId) {
+                                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                                    }
+                                }
+                                Spacer(Modifier.width(10.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text(it2.productName + (it2.variantLabel?.takeIf { v -> v.isNotBlank() }?.let { v -> " ($v)" } ?: ""), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium)
                                     Text("${it2.quantity} × ৳${money(it2.unitPrice)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1158,6 +1212,9 @@ private fun OrderDetailsDialog(
                                 Text("৳ ${money(it2.lineTotal)}", fontWeight = FontWeight.Bold)
                             }
                         }
+                    }
+                    productError?.let {
+                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                 }
 
@@ -1219,6 +1276,27 @@ private fun OrderDetailsDialog(
                     Text("Payment status", fontWeight = FontWeight.SemiBold)
                     SimpleChoice(pay, PAYMENT_STATUSES) { pay = it }
                 }
+    }
+
+    viewProduct?.let { p ->
+        ProductDialog(
+            initial = p,
+            cats = cats,
+            onDismiss = { viewProduct = null }
+        ) { n, d, pr, op, st, ci, img, gal, f, fl, h ->
+            scope.launch {
+                Repository().updateProduct(
+                    p.copy(
+                        name = n, description = d, price = pr, oldPrice = op,
+                        stock = st, categoryId = ci, imageUrl = img, galleryUrls = gal,
+                        featured = f, flashSale = fl, hotDeal = h
+                    )
+                ).fold(
+                    { viewProduct = null },
+                    { productError = it.message }
+                )
+            }
+        }
     }
 }
 

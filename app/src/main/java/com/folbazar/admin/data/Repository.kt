@@ -66,7 +66,8 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
         id = s(o, "id") ?: "", orderId = s(o, "order_id") ?: "", productId = s(o, "product_id"),
         productName = s(o, "product_name") ?: "পণ্য", variantLabel = s(o, "variant_label"),
         weightGrams = i(o, "weight_grams"), unitPrice = d(o, "unit_price") ?: 0.0,
-        quantity = i(o, "quantity") ?: 0, lineTotal = d(o, "line_total") ?: 0.0
+        quantity = i(o, "quantity") ?: 0, lineTotal = d(o, "line_total") ?: 0.0,
+        imageUrl = s(o, "image_url") ?: (o["products"] as? JsonObject)?.let { s(it, "image_url") }
     )
 
     private fun parseCustomer(o: JsonObject) = Customer(
@@ -130,7 +131,17 @@ class Repository(private val api: SupabaseClient = SupabaseClient()) {
     }}
 
     suspend fun orderItems(orderId: String): Result<List<OrderItem>> = runCatching { withContext(Dispatchers.IO) {
-        array(api.get("order_items", "?select=*&order_id=eq.$orderId")).map { parseOrderItem(it.jsonObject) }
+        array(api.get("order_items", "?select=*,products(image_url)&order_id=eq.$orderId")).map { parseOrderItem(it.jsonObject) }
+    }}
+
+    suspend fun product(id: String): Result<Product?> = runCatching { withContext(Dispatchers.IO) {
+        val raw = api.get("products", "?select=*,categories(name)&id=eq.$id")
+        array(raw).firstOrNull()?.let { el ->
+            val o = el.jsonObject.toMutableMap()
+            val cat = o["categories"]?.jsonObject
+            if (cat != null) o["category_name"] = cat["name"] ?: JsonNull
+            parseProduct(JsonObject(o))
+        }
     }}
 
     suspend fun customers(): Result<List<Customer>> = runCatching { withContext(Dispatchers.IO) {
