@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -1356,16 +1357,41 @@ private fun OrderDetailsDialog(
                 }
 
                 OrderSection("রশিদ ডাউনলোড") {
-                    Text("অর্ডার রশিদ ছবি বা PDF আকারে সেভ/শেয়ার করুন", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("সাইজ বেছে নিয়ে অর্ডার রশিদ ছবি বা PDF আকারে সেভ/শেয়ার করুন", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    var receiptSize by remember { mutableStateOf(ReceiptPaperSize.A4) }
+                    var receiptBusy by remember { mutableStateOf(false) }
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ReceiptPaperSize.values().forEach { s ->
+                            FilterChip(
+                                selected = receiptSize == s,
+                                onClick = { receiptSize = s },
+                                label = { Text(s.label) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(
                             onClick = {
-                                val bmp = OrderReceiptExporter.renderBitmap(o, items)
-                                val file = OrderReceiptExporter.saveImage(context, bmp, o.orderNumber)
-                                OrderReceiptExporter.shareFile(context, file, "image/png")
+                                val activity = OrderReceiptExporter.findActivity(context)
+                                if (activity == null) {
+                                    Toast.makeText(context, "রশিদ এক্সপোর্ট করা যায়নি", Toast.LENGTH_SHORT).show()
+                                    return@OutlinedButton
+                                }
+                                receiptBusy = true
+                                scope.launch {
+                                    try {
+                                        val file = OrderReceiptExporter.exportImage(activity, o, items, receiptSize)
+                                        OrderReceiptExporter.shareFile(context, file, "image/png")
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "ছবি তৈরি ব্যর্থ: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        receiptBusy = false
+                                    }
+                                }
                             },
                             modifier = Modifier.weight(1f),
-                            enabled = !itemsLoading
+                            enabled = !itemsLoading && !receiptBusy
                         ) {
                             Icon(Icons.Default.Image, null)
                             Spacer(Modifier.width(5.dp))
@@ -1373,17 +1399,34 @@ private fun OrderDetailsDialog(
                         }
                         OutlinedButton(
                             onClick = {
-                                val doc = OrderReceiptExporter.renderPdf(o, items)
-                                val file = OrderReceiptExporter.savePdf(context, doc, o.orderNumber)
-                                OrderReceiptExporter.shareFile(context, file, "application/pdf")
+                                val activity = OrderReceiptExporter.findActivity(context)
+                                if (activity == null) {
+                                    Toast.makeText(context, "রশিদ এক্সপোর্ট করা যায়নি", Toast.LENGTH_SHORT).show()
+                                    return@OutlinedButton
+                                }
+                                receiptBusy = true
+                                scope.launch {
+                                    try {
+                                        val file = OrderReceiptExporter.exportPdf(activity, o, items, receiptSize)
+                                        OrderReceiptExporter.shareFile(context, file, "application/pdf")
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "PDF তৈরি ব্যর্থ: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        receiptBusy = false
+                                    }
+                                }
                             },
                             modifier = Modifier.weight(1f),
-                            enabled = !itemsLoading
+                            enabled = !itemsLoading && !receiptBusy
                         ) {
                             Icon(Icons.Default.PictureAsPdf, null)
                             Spacer(Modifier.width(5.dp))
                             Text("PDF ডাউনলোড")
                         }
+                    }
+                    if (receiptBusy) {
+                        Spacer(Modifier.height(6.dp))
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
                 }
 
