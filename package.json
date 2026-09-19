@@ -40,20 +40,23 @@
       "target": [
         "nsis"
       ],
-      "artifactName": "Fol-Bazar-Admin-Setup-${version}.exe"
+      "artifactName": "Fol-Bazar-Admin-Setup-${version}.exe",
+      "icon": "build/icon.ico"
     },
     "linux": {
       "target": [
         "AppImage",
         "deb"
       ],
-      "artifactName": "Fol-Bazar-Admin-${version}.${ext}"
+      "artifactName": "Fol-Bazar-Admin-${version}.${ext}",
+      "icon": "public/fol-bazar-admin-logo.png"
     },
     "mac": {
       "target": [
         "dmg"
       ],
-      "artifactName": "Fol-Bazar-Admin-${version}.${ext}"
+      "artifactName": "Fol-Bazar-Admin-${version}.${ext}",
+      "icon": "public/fol-bazar-admin-logo.png"
     },
     "artifactName": "Fol-Bazar-Admin-Setup-${version}.exe"
   },

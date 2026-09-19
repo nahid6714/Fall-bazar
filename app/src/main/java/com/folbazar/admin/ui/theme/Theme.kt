@@ -7,39 +7,54 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-private val Red = Color(0xFFDF2D4D)
+// Fol Bazar brand palette — derived from the new green/lime admin logo.
+private val FolGreen = Color(0xFF00A651)
+private val FolGreenDark = Color(0xFF008C45)
+private val FolGreenSoft = Color(0xFFE9F9EF)
+private val FolLime = Color(0xFFB7F000)
 
 private val LightColors = lightColorScheme(
-    primary = Red,
+    primary = FolGreen,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFFFEBEE),
-    onPrimaryContainer = Color(0xFF8B0000),
-    background = Color(0xFFF8F8F8),
+    primaryContainer = FolGreenSoft,
+    onPrimaryContainer = Color(0xFF005A2A),
+    secondary = FolGreenDark,
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFDDF5E6),
+    onSecondaryContainer = Color(0xFF003D1D),
+    tertiary = FolLime,
+    onTertiary = Color(0xFF163000),
+    background = Color(0xFFF7FBF8),
     surface = Color.White,
-    surfaceContainerLow = Color(0xFFF3F1F1)
+    surfaceContainerLow = Color(0xFFF0F8F2)
 )
 
 private val DarkColors = darkColorScheme(
-    primary = Color(0xFFFF6B85),
-    onPrimary = Color(0xFF3A0012),
-    primaryContainer = Color(0xFF5C1224),
-    onPrimaryContainer = Color(0xFFFFD9DF),
-    background = Color(0xFF121212),
-    onBackground = Color(0xFFEAEAEA),
-    surface = Color(0xFF1C1C1E),
-    onSurface = Color(0xFFEAEAEA),
-    surfaceContainerLow = Color(0xFF242426),
-    surfaceVariant = Color(0xFF2C2C2E),
-    onSurfaceVariant = Color(0xFFC7C7C9),
-    outline = Color(0xFF444448)
+    primary = Color(0xFF39D77A),
+    onPrimary = Color(0xFF00391A),
+    primaryContainer = Color(0xFF005A2A),
+    onPrimaryContainer = Color(0xFFB8F5CA),
+    secondary = Color(0xFF5BE68D),
+    onSecondary = Color(0xFF00391A),
+    secondaryContainer = Color(0xFF174F2B),
+    onSecondaryContainer = Color(0xFFB8F5CA),
+    tertiary = Color(0xFFB7F000),
+    onTertiary = Color(0xFF163000),
+    background = Color(0xFF071A10),
+    onBackground = Color(0xFFE4F3E8),
+    surface = Color(0xFF0D2417),
+    onSurface = Color(0xFFE4F3E8),
+    surfaceContainerLow = Color(0xFF12301E),
+    surfaceVariant = Color(0xFF183C25),
+    onSurfaceVariant = Color(0xFFB8CDBE),
+    outline = Color(0xFF42634D)
 )
 
-/**
- * @param darkTheme defaults to following the system setting; pass an explicit value
- * when the admin has chosen Light/Dark manually (see ThemePrefs).
- */
 @Composable
-fun FolBazarTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun FolBazarTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         content = content

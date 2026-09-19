@@ -7,7 +7,8 @@ function createWindow() {
     height: 900,
     minWidth: 1100,
     minHeight: 700,
-    backgroundColor: '#f6f7f9',
+    backgroundColor: '#071A10',
+    icon: path.join(__dirname, '..', 'public', 'fol-bazar-admin-logo.png'),
     show: false,
     webPreferences: {
       contextIsolation: true,
