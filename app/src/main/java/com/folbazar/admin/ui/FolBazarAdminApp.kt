@@ -199,7 +199,7 @@ private fun DashboardShortcut(title: String, icon: ImageVector, modifier: Modifi
         val all = mutableListOf<OrderItem>()
         orders.take(100).forEach { o -> r.orderItems(o.id).getOrNull()?.let { all += it } }
         items = all
-        r.setting("sales_goal").getOrNull()?.jsonPrimitive?.doubleOrNull?.let { goal = it.toLong().toString() }
+        r.setting("sales_goal").getOrNull()?.jsonPrimitive?.contentOrNull?.toDoubleOrNull()?.let { goal = it.toLong().toString() }
         error = os.exceptionOrNull()?.message ?: ps.exceptionOrNull()?.message
     }
     val delivered = orders.filter { it.status == "delivered" }
@@ -212,9 +212,9 @@ private fun DashboardShortcut(title: String, icon: ImageVector, modifier: Modifi
     LazyColumn(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("সেলস অ্যানালিটিক্স", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("আগের Admin Panel-এর dashboard analytics ও sales goal এখন Fol Bazar-এ") }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(10.dp)) { Stat("Delivered Sales", "৳ ${money(revenue)}", Icons.Default.Payments, Modifier.weight(1f)) {}; Stat("আজকের অর্ডার", todayOrders.toString(), Icons.Default.Today, Modifier.weight(1f)) {} } }
-        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) { Text("মাসিক / সেলস Goal", fontWeight=FontWeight.Bold); Text("৳ ${money(revenue)} / ৳ ${money(goalValue)}"); LinearProgressIndicator(progress={progress}, modifier=Modifier.fillMaxWidth()); Row(horizontalArrangement=Arrangement.spacedBy(8.dp), verticalAlignment=Alignment.CenterVertically) { OutlinedTextField(goalInput, {goalInput=it}, label={Text("Goal (৳)")}, keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal), modifier=Modifier.weight(1f), singleLine=true); Button(onClick={ val v=goalInput.toDoubleOrNull(); if(v!=null){ goal=v.toString(); scope.launch { Repository().saveSetting("sales_goal", JsonPrimitive(v)) } } }){Text("সেভ")} } } } }
+        item { Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement=Arrangement.spacedBy(8.dp)) { Text("মাসিক / সেলস Goal", fontWeight=FontWeight.Bold); Text("৳ ${money(revenue)} / ৳ ${money(goalValue)}"); LinearProgressIndicator(progress=progress.toFloat(), modifier=Modifier.fillMaxWidth()); Row(horizontalArrangement=Arrangement.spacedBy(8.dp), verticalAlignment=Alignment.CenterVertically) { OutlinedTextField(goalInput, {goalInput=it}, label={Text("Goal (৳)")}, keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal), modifier=Modifier.weight(1f), singleLine=true); Button(onClick={ val v=goalInput.toDoubleOrNull(); if(v!=null){ goal=v.toString(); scope.launch { Repository().saveSetting("sales_goal", JsonPrimitive(v)) } } }){Text("সেভ")} } } } }
         item { Text("Top Selling Products", style=MaterialTheme.typography.titleLarge, fontWeight=FontWeight.Bold) }
-        items(top) { e -> Card(Modifier.fillMaxWidth()) { Row(Modifier.padding(14.dp), horizontalArrangement=Arrangement.SpaceBetween, modifier=Modifier.fillMaxWidth()) { Text(e.key, modifier=Modifier.weight(1f)); Text("${e.value} pcs", fontWeight=FontWeight.Bold) } } }
+        items(top.size) { index -> val e = top[index]; Card(Modifier.fillMaxWidth()) { Row(modifier=Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement=Arrangement.SpaceBetween) { Text(e.key, modifier=Modifier.weight(1f)); Text("${e.value} pcs", fontWeight=FontWeight.Bold) } } }
         error?.let { item { Text("ডাটা লোড সমস্যা: $it", color=MaterialTheme.colorScheme.error) } }
         item { OutlinedButton(onClick={refresh++}, modifier=Modifier.fillMaxWidth()){Icon(Icons.Default.Refresh,null);Spacer(Modifier.width(6.dp));Text("রিফ্রেশ")} }
     }
