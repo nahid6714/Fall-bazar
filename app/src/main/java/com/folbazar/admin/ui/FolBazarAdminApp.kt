@@ -51,6 +51,14 @@ private val ORDER_STATUSES = listOf("pending","confirmed","processing","packed",
 private val PAYMENT_STATUSES = listOf("pending","paid","failed","refunded")
 private val CUSTOMER_ROLES = listOf("customer","reseller","seller","admin")
 private val COMPLAINT_STATUSES = listOf("open","in_review","resolved","closed","rejected")
+private val VARIANT_PRESETS = listOf(
+    250 to "২৫০ গ্রাম",
+    500 to "৫০০ গ্রাম",
+    1000 to "১ কেজি",
+    2000 to "২ কেজি",
+    3000 to "৩ কেজি",
+    5000 to "৫ কেজি"
+)
 
 @Composable
 fun FolBazarAdminApp() {
@@ -344,6 +352,7 @@ private fun VariantManagerDialog(product: Product, onDismiss: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableStateOf(0) }
     var add by remember { mutableStateOf(false) }
+    var quickAdd by remember { mutableStateOf(false) }
     var edit by remember { mutableStateOf<ProductVariant?>(null) }
     var del by remember { mutableStateOf<ProductVariant?>(null) }
 
@@ -363,7 +372,10 @@ private fun VariantManagerDialog(product: Product, onDismiss: () -> Unit) {
         onConfirm = onDismiss
     ) {
                 Text("ওয়েবসাইটে যে ৫০০ গ্রাম, ১ কেজি ইত্যাদি দেখাবে—এখান থেকেই যোগ/এডিট/ডিলিট করুন.", style=MaterialTheme.typography.bodySmall)
-                FilledTonalButton(onClick={add=true}, modifier=Modifier.fillMaxWidth()) { Icon(Icons.Default.Add,null); Spacer(Modifier.width(5.dp)); Text("নতুন সাইজ / ভ্যারিয়েন্ট") }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick={add=true}, modifier=Modifier.weight(1f)) { Icon(Icons.Default.Add,null); Spacer(Modifier.width(5.dp)); Text("একটি সাইজ") }
+                    FilledTonalButton(onClick={quickAdd=true}, modifier=Modifier.weight(1f)) { Icon(Icons.Default.PlaylistAdd,null); Spacer(Modifier.width(5.dp)); Text("একসাথে কয়েকটি") }
+                }
                 if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { Text("ডাটা লোড হয়নি: $it", color=MaterialTheme.colorScheme.error) }
                 if (!loading && variants.isEmpty()) Text("এখনও কোনো সাইজ/ভ্যারিয়েন্ট যোগ করা হয়নি.", color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -385,12 +397,114 @@ private fun VariantManagerDialog(product: Product, onDismiss: () -> Unit) {
     if (add) VariantEditorDialog(null, onDismiss={add=false}, onSave={label,grams,price,oldPrice,stock,active,sortOrder ->
         scope.launch { Repository().addVariant(product.id,label,grams,price,oldPrice,stock,sortOrder).fold({add=false;refresh++},{error=it.message}) }
     })
+    if (quickAdd) QuickVariantDialog(
+        productName = product.name,
+        existingWeights = variants.map { it.weightGrams }.toSet(),
+        onDismiss = { quickAdd = false }
+    ) { stock, items, prices ->
+        scope.launch {
+            var ok = true
+            var lastError: String? = null
+            items.forEach { (grams, label) ->
+                if (ok) {
+                    Repository().addVariant(product.id, label, grams, prices[grams] ?: 0.0, null, stock, grams).fold(
+                        { },
+                        { ok = false; lastError = it.message }
+                    )
+                }
+            }
+            quickAdd = false
+            refresh++
+            if (!ok) error = lastError
+        }
+    }
     edit?.let { v -> VariantEditorDialog(v, onDismiss={edit=null}, onSave={label,grams,price,oldPrice,stock,active,sortOrder ->
         scope.launch { Repository().updateVariant(v.copy(label=label,weightGrams=grams,price=price,oldPrice=oldPrice,stock=stock,active=active,sortOrder=sortOrder)).fold({edit=null;refresh++},{error=it.message}) }
     }) }
-    del?.let { v -> Confirm("ভ্যারিয়েন্ট ডিলিট করবেন?", "${v.label} (${v.weightGrams}g) স্থায়ীভাবে মুছে যাবে.", {
+    del?.let { v -> Confirm("ভ্যারিয়েন্ট ডিলিট করবেন?", "${v.label} (${v.weightGrams}g) স্থায়ীভাবে মুছে যাবে.", {
         scope.launch { Repository().deleteVariant(v.id).fold({del=null;refresh++},{error=it.message;del=null}) }
     }, { del=null }) }
+}
+
+@Composable
+private fun QuickVariantDialog(
+    productName: String,
+    existingWeights: Set<Int>,
+    onDismiss: () -> Unit,
+    onConfirm: (stock: Int, items: List<Pair<Int, String>>, prices: Map<Int, Double>) -> Unit
+) {
+    var perKg by remember { mutableStateOf("") }
+    var stock by remember { mutableStateOf("0") }
+    var selected by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var priceOverrides by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
+    val perKgValue = perKg.toDoubleOrNull()
+
+    fun autoPrice(grams: Int): Double = (perKgValue ?: 0.0) * grams / 1000.0
+
+    FullScreenEditorPage(
+        onDismiss = onDismiss,
+        title = "একসাথে কয়েকটি সাইজ — $productName",
+        confirmText = "সিলেক্ট করা সাইজ যোগ করুন",
+        confirmEnabled = selected.isNotEmpty(),
+        onConfirm = {
+            val items = selected.sorted().map { g -> g to (VARIANT_PRESETS.firstOrNull { it.first == g }?.second ?: "${g}g") }
+            val prices = selected.associateWith { g -> priceOverrides[g]?.toDoubleOrNull() ?: autoPrice(g) }
+            onConfirm(stock.toIntOrNull() ?: 0, items, prices)
+        }
+    ) {
+                Text(
+                    "একবার প্রতি কেজি দাম দিন, নিচে থেকে যে সাইজগুলো লাগবে টিক দিন—দাম নিজে থেকেই হিসাব হয়ে যাবে। প্রয়োজনে যেকোনো সাইজের দাম আলাদা করেও বদলাতে পারবেন।",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Field(perKg, { perKg = it }, "প্রতি কেজি দাম (৳)", KeyboardType.Decimal)
+                Field(stock, { stock = it }, "প্রতিটি সাইজে স্টক", KeyboardType.Number)
+
+                VARIANT_PRESETS.forEach { (grams, label) ->
+                    val already = existingWeights.contains(grams)
+                    val isSelected = selected.contains(grams)
+                    Card(
+                        Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    ) {
+                        Column(Modifier.padding(10.dp)) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !already) {
+                                        selected = if (isSelected) selected - grams else selected + grams
+                                    },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = isSelected, enabled = !already, onCheckedChange = {
+                                    selected = if (it) selected + grams else selected - grams
+                                })
+                                Column(Modifier.weight(1f)) {
+                                    Text(label, fontWeight = FontWeight.SemiBold)
+                                    if (already) Text(
+                                        "ইতিমধ্যে যোগ করা আছে",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (isSelected) Text("৳ ${money(autoPrice(grams))}", fontWeight = FontWeight.Bold)
+                            }
+                            if (isSelected) {
+                                Spacer(Modifier.height(6.dp))
+                                Field(
+                                    priceOverrides[grams] ?: (if (perKgValue != null) money(autoPrice(grams)) else ""),
+                                    { v -> priceOverrides = priceOverrides + (grams to v) },
+                                    "এই সাইজের দাম (৳) — চাইলে বদলান",
+                                    KeyboardType.Decimal
+                                )
+                            }
+                        }
+                    }
+                }
+    }
 }
 
 @Composable
